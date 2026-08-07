@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfig.js';
 import Track from '../entities/Track.js';
 import Car from '../entities/Car.js';
+import AICar from '../entities/AICar.js';
 import TouchControls from '../ui/TouchControls.js';
 import RaceHud from '../ui/RaceHud.js';
 import RaceManager from '../systems/RaceManager.js';
@@ -9,6 +10,36 @@ import { TRACKS } from '../data/TracksData.js';
 import { CARS, DEFAULT_CAR_ID } from '../data/CarsData.js';
 
 const TOTAL_LAPS = 3;
+
+// Adversarios de IA da corrida de teste: 3 dificuldades exigidas pela
+// spec (facil/normal/dificil), cada um com cor propria para dar pra
+// distinguir na pista.
+const AI_OPPONENTS = [
+  {
+    ...CARS.car1,
+    id: 'ai_easy',
+    name: 'IA Facil',
+    difficulty: 'easy',
+    bodyColor: 0x9bd66b,
+    accentColor: 0x1c2e12
+  },
+  {
+    ...CARS.car1,
+    id: 'ai_normal',
+    name: 'IA Normal',
+    difficulty: 'normal',
+    bodyColor: 0xff9e2d,
+    accentColor: 0x33200a
+  },
+  {
+    ...CARS.car1,
+    id: 'ai_hard',
+    name: 'IA Dificil',
+    difficulty: 'hard',
+    bodyColor: 0xb84dff,
+    accentColor: 0x2a0a3d
+  }
+];
 
 // Cena de corrida. Constroi a pista e o carro do jogador com fisica de
 // direcao arcade, controles touch/teclado, e o sistema de corrida
@@ -41,6 +72,7 @@ export default class RaceScene extends Phaser.Scene {
 
     this._markStart();
     this._createPlayerCar();
+    this._createAiCars();
     this._createRaceManager();
     this._createKeyboardInput();
     this._createTouchControls();
@@ -68,9 +100,40 @@ export default class RaceScene extends Phaser.Scene {
     this.worldObjects.push(this.playerCar.sprite);
   }
 
+  _createAiCars() {
+    this.aiCars = [];
+    this.aiGridOffsets = [];
+    const startProgress = this.track.getClosestProgress(this.track.startPoint.x, this.track.startPoint.y);
+    const lanes = [-45, 45, 0];
+
+    AI_OPPONENTS.forEach((def, index) => {
+      const backDistance = 70 + index * 70;
+      this.aiGridOffsets.push(-backDistance);
+      const gridPoint = this.track.getPointAtDistance(startProgress - backDistance);
+      const normal = { x: -Math.sin(gridPoint.angle), y: Math.cos(gridPoint.angle) };
+      const lane = lanes[index % lanes.length];
+
+      const ai = new AICar(this, {
+        x: gridPoint.x + normal.x * lane,
+        y: gridPoint.y + normal.y * lane,
+        angle: gridPoint.angle,
+        carDef: def,
+        textureKey: `car_${def.id}`,
+        track: this.track,
+        difficulty: def.difficulty
+      });
+
+      this.aiCars.push(ai);
+      this.worldObjects.push(ai.sprite);
+    });
+  }
+
   _createRaceManager() {
     this.raceManager = new RaceManager({ track: this.track, totalLaps: TOTAL_LAPS });
-    this.raceManager.addRacer('player', this.playerCar);
+    this.raceManager.addRacer('player', this.playerCar, 0);
+    this.aiCars.forEach((ai, index) => {
+      this.raceManager.addRacer(AI_OPPONENTS[index].id, ai.car, this.aiGridOffsets[index]);
+    });
   }
 
   _createKeyboardInput() {
@@ -126,19 +189,24 @@ export default class RaceScene extends Phaser.Scene {
     if (!playerRacer.finished) {
       const input = this._readInput();
       this.playerCar.setInput(input);
-      this.playerCar.update(deltaSeconds);
-      this.raceManager.update(deltaSeconds);
     } else {
       this.playerCar.setInput({ throttle: 0, brake: 0, steer: 0 });
-      this.playerCar.update(deltaSeconds);
     }
+    this.playerCar.update(deltaSeconds);
+
+    const avoidanceList = [...this.aiCars, { x: this.playerCar.x, y: this.playerCar.y }];
+    this.aiCars.forEach((ai) => ai.update(deltaSeconds, avoidanceList));
+
+    this.raceManager.update(deltaSeconds);
+
+    const displayTime = playerRacer.finished ? playerRacer.finishTime : this.raceManager.raceTime;
 
     this.raceHud.update({
       position: playerRacer.position,
       totalRacers: this.raceManager.racers.length,
-      lap: playerRacer.lap,
+      lap: this.raceManager.getDisplayLap(playerRacer),
       totalLaps: TOTAL_LAPS,
-      raceTime: this.raceManager.raceTime,
+      raceTime: displayTime,
       speedKmh: this.playerCar.getSpeedKmh(),
       formatTime: (s) => this.raceManager.formatTime(s)
     });

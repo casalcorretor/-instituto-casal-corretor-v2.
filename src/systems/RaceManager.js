@@ -1,9 +1,16 @@
 // Gerencia voltas, tempo e posição de uma corrida. Funciona com
-// qualquer número de "racers" (carro do jogador e, a partir da
-// Etapa 6, carros de IA), todos comparados pela mesma métrica de
-// progresso total (volta atual * comprimento da pista + distância
-// percorrida na volta).
-const FINISH_CROSS_COOLDOWN = 3;
+// qualquer número de "racers" (carro do jogador e carros de IA).
+//
+// Em vez de comparar a posição "bruta" na spline (0..totalLength), que
+// da problema perto da linha de largada/chegada (um carro fisicamente
+// atras no grid pode cair num ponto da spline com valor bruto MAIOR,
+// por causa do wraparound do laço fechado), cada racer acumula uma
+// "raceDistance" monotonica: a cada frame somamos o deslocamento real
+// ao longo da pista (positivo andando pra frente, negativo de re),
+// desembrulhando a transição pela linha de largada. Isso da um numero
+// sempre comparavel entre carros, incluindo os que comecam atras no
+// grid (raceDistance inicial negativa).
+const FINISH_LINE_REVERSE_GUARD = 0.5; // fracao do comprimento da pista
 
 export default class RaceManager {
   constructor({ track, totalLaps = 3 }) {
@@ -14,21 +21,22 @@ export default class RaceManager {
     this.raceFinished = false;
   }
 
-  addRacer(id, car) {
-    const startProgress = this.track.getClosestProgress(car.x, car.y);
+  // startDistanceOffset: quao atras da linha de largada o carro comeca
+  // (em unidades de mundo, negativo = atras). Usado so para o grid.
+  addRacer(id, car, startDistanceOffset = 0) {
+    const rawProgress = this.track.getClosestProgress(car.x, car.y);
 
     this.racers.push({
       id,
       car,
-      lap: 1,
-      lastProgress: startProgress,
-      totalProgress: startProgress,
+      lastRawProgress: rawProgress,
+      raceDistance: startDistanceOffset,
+      lapsCompleted: 0,
       lapStartTime: 0,
       lapTimes: [],
       finished: false,
       finishTime: null,
-      position: 1,
-      crossCooldown: 0
+      position: 1
     });
   }
 
@@ -41,32 +49,34 @@ export default class RaceManager {
     this.raceTime += deltaSeconds;
 
     const total = this.track.totalLength;
+    const guard = total * FINISH_LINE_REVERSE_GUARD;
 
     for (const racer of this.racers) {
       if (racer.finished) continue;
 
-      racer.crossCooldown = Math.max(0, racer.crossCooldown - deltaSeconds);
-      const progress = this.track.getClosestProgress(racer.car.x, racer.car.y);
+      const rawProgress = this.track.getClosestProgress(racer.car.x, racer.car.y);
+      let delta = rawProgress - racer.lastRawProgress;
 
-      const crossedFinishLine =
-        racer.crossCooldown === 0 && racer.lastProgress > total * 0.8 && progress < total * 0.2;
+      // desembrulha a passagem pela linha de largada/chegada (0 <-> total)
+      if (delta > guard) delta -= total;
+      else if (delta < -guard) delta += total;
 
-      if (crossedFinishLine) {
-        const lapTime = this.raceTime - racer.lapStartTime;
-        racer.lapTimes.push(lapTime);
-        racer.lapStartTime = this.raceTime;
-        racer.crossCooldown = FINISH_CROSS_COOLDOWN;
+      racer.raceDistance += delta;
+      racer.lastRawProgress = rawProgress;
 
-        if (racer.lap >= this.totalLaps) {
+      const lapsNow = Math.max(0, Math.floor(racer.raceDistance / total));
+      if (lapsNow > racer.lapsCompleted) {
+        for (let lap = racer.lapsCompleted; lap < lapsNow; lap++) {
+          racer.lapTimes.push(this.raceTime - racer.lapStartTime);
+          racer.lapStartTime = this.raceTime;
+        }
+        racer.lapsCompleted = lapsNow;
+
+        if (racer.lapsCompleted >= this.totalLaps) {
           racer.finished = true;
           racer.finishTime = this.raceTime;
-        } else {
-          racer.lap += 1;
         }
       }
-
-      racer.lastProgress = progress;
-      racer.totalProgress = (racer.lap - 1) * total + progress;
     }
 
     this._updatePositions();
@@ -77,10 +87,15 @@ export default class RaceManager {
   }
 
   _updatePositions() {
-    const sorted = [...this.racers].sort((a, b) => b.totalProgress - a.totalProgress);
+    const sorted = [...this.racers].sort((a, b) => b.raceDistance - a.raceDistance);
     sorted.forEach((racer, index) => {
       racer.position = index + 1;
     });
+  }
+
+  // Volta exibida ao jogador (1-indexado, nunca passa de totalLaps).
+  getDisplayLap(racer) {
+    return Math.min(racer.lapsCompleted + 1, this.totalLaps);
   }
 
   formatTime(seconds) {
