@@ -5,9 +5,30 @@ import { angleDiff, clamp } from '../utils/MathUtils.js';
 // carro), distancia de antecipacao da curva, agressividade da direcao
 // e frequencia/duracao dos "erros" ocasionais exigidos pela spec.
 const DIFFICULTY_PRESETS = {
-  easy: { speedMultiplier: 0.76, lookahead: 130, steerGain: 2.1, mistakeChance: 0.012, mistakeDuration: 0.7 },
-  normal: { speedMultiplier: 0.9, lookahead: 165, steerGain: 2.7, mistakeChance: 0.006, mistakeDuration: 0.45 },
-  hard: { speedMultiplier: 1.02, lookahead: 195, steerGain: 3.3, mistakeChance: 0.002, mistakeDuration: 0.25 }
+  easy: {
+    speedMultiplier: 0.76,
+    lookahead: 130,
+    steerGain: 2.1,
+    mistakeChance: 0.012,
+    mistakeDuration: 0.7,
+    nitroChance: 0
+  },
+  normal: {
+    speedMultiplier: 0.9,
+    lookahead: 165,
+    steerGain: 2.7,
+    mistakeChance: 0.006,
+    mistakeDuration: 0.45,
+    nitroChance: 0.004
+  },
+  hard: {
+    speedMultiplier: 1.02,
+    lookahead: 195,
+    steerGain: 3.3,
+    mistakeChance: 0.002,
+    mistakeDuration: 0.25,
+    nitroChance: 0.012
+  }
 };
 
 const OVERTAKE_LOOKAHEAD = 90;
@@ -61,7 +82,9 @@ export default class AICar {
     const throttle = clamp(1 - sharpness * 0.7, 0.25, 1);
     const brake = sharpness > 0.75 ? 0.4 : 0;
 
-    this.car.setInput({ throttle, brake, steer });
+    const nitro = this._updateNitroDecision(deltaSeconds, sharpness);
+
+    this.car.setInput({ throttle, brake, steer, nitro });
     this.car.update(deltaSeconds, this.preset.speedMultiplier);
   }
 
@@ -80,6 +103,22 @@ export default class AICar {
     }
 
     return 0;
+  }
+
+  // Em retas (curva suave), a IA normal/dificil pode acionar o nitro por
+  // conta propria caso tenha carga suficiente; uma vez acionado, segura
+  // por um tempinho em vez de piscar a cada frame.
+  _updateNitroDecision(deltaSeconds, sharpness) {
+    this.nitroBurstTimer = (this.nitroBurstTimer ?? 0) - deltaSeconds;
+
+    if (this.nitroBurstTimer <= 0) {
+      const canStart = sharpness < 0.15 && this.car.getNitroFraction() > 0.4;
+      if (canStart && Math.random() < this.preset.nitroChance) {
+        this.nitroBurstTimer = 1.5 + Math.random();
+      }
+    }
+
+    return this.nitroBurstTimer > 0;
   }
 
   _updateMistake(deltaSeconds) {

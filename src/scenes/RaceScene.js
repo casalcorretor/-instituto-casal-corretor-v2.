@@ -97,7 +97,7 @@ export default class RaceScene extends Phaser.Scene {
       carDef,
       textureKey: `car_${carDef.id}`
     });
-    this.worldObjects.push(this.playerCar.sprite);
+    this.worldObjects.push(this.playerCar.sprite, this.playerCar.nitroEmitter);
   }
 
   _createAiCars() {
@@ -124,7 +124,7 @@ export default class RaceScene extends Phaser.Scene {
       });
 
       this.aiCars.push(ai);
-      this.worldObjects.push(ai.sprite);
+      this.worldObjects.push(ai.sprite, ai.car.nitroEmitter);
     });
   }
 
@@ -146,7 +146,7 @@ export default class RaceScene extends Phaser.Scene {
   }
 
   _createUiCamera() {
-    this.raceHud = new RaceHud(this, { width: GAME_WIDTH });
+    this.raceHud = new RaceHud(this, { width: GAME_WIDTH, height: GAME_HEIGHT });
 
     this.statusText = this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, '', {
@@ -208,6 +208,7 @@ export default class RaceScene extends Phaser.Scene {
       totalLaps: TOTAL_LAPS,
       raceTime: displayTime,
       speedKmh: this.playerCar.getSpeedKmh(),
+      nitroFraction: this.playerCar.getNitroFraction(),
       formatTime: (s) => this.raceManager.formatTime(s)
     });
 

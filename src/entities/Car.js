@@ -1,7 +1,16 @@
 import { clamp } from '../utils/MathUtils.js';
+import { playSfx } from '../systems/AudioManager.js';
 
 const CAR_WIDTH = 34;
 const CAR_HEIGHT = 18;
+
+const NITRO_MAX_SPEED_MULTIPLIER = 1.35;
+const NITRO_ACCEL_MULTIPLIER = 1.6;
+const NITRO_DRAIN_TIME = 2.2; // segundos para esvaziar a barra cheia
+const NITRO_RECHARGE_TIME = 6; // segundos para reencher a barra vazia
+const NITRO_MIN_SPEED_TO_USE = 20;
+
+const NITRO_PARTICLE_TEXTURE = 'nitro_particle';
 
 // Desenha, uma unica vez, a textura de um carro (visto de cima) e a
 // registra na textura manager da cena. Chamado no preload/criacao das
@@ -41,28 +50,57 @@ export function generateCarTexture(scene, textureKey, bodyColor, accentColor) {
   g.destroy();
 }
 
+function generateNitroParticleTexture(scene) {
+  if (scene.textures.exists(NITRO_PARTICLE_TEXTURE)) return;
+
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(4, 4, 4);
+  g.generateTexture(NITRO_PARTICLE_TEXTURE, 8, 8);
+  g.destroy();
+}
+
 // Entidade de carro com física arcade simples: aceleração, frenagem,
-// atrito e curva dependente da velocidade. Serve tanto para o jogador
-// (Etapa 4 acopla os controles touch) quanto para adversários de IA
-// (Etapa 6 acopla o comportamento automático).
+// atrito e curva dependente da velocidade, mais o sistema de nitro
+// (barra que drena ao usar, recarrega sozinha, e da um boost temporario
+// de velocidade/aceleracao com rastro de particulas). Serve tanto para
+// o jogador quanto para adversários de IA.
 export default class Car {
   constructor(scene, { x, y, angle = 0, carDef, textureKey }) {
     this.scene = scene;
     this.def = carDef;
 
     generateCarTexture(scene, textureKey, carDef.bodyColor, carDef.accentColor);
+    generateNitroParticleTexture(scene);
 
     this.sprite = scene.physics.add.image(x, y, textureKey);
     this.sprite.setRotation(angle);
     this.sprite.body.setSize(CAR_WIDTH, CAR_HEIGHT, true);
     this.sprite.setDamping(false);
     this.sprite.setDrag(0);
-    this.sprite.setMaxVelocity(carDef.maxSpeed * 1.5);
+    this.sprite.setMaxVelocity(carDef.maxSpeed * 1.5 * NITRO_MAX_SPEED_MULTIPLIER);
 
     this.speed = 0;
     this.angle = angle;
 
-    this.input = { throttle: 0, brake: 0, steer: 0 };
+    this.input = { throttle: 0, brake: 0, steer: 0, nitro: false };
+
+    this.nitroCapacity = carDef.nitroCapacity;
+    this.nitroAmount = carDef.nitroCapacity;
+    this.nitroActive = false;
+
+    this.nitroEmitter = scene.add.particles(0, 0, NITRO_PARTICLE_TEXTURE, {
+      speed: { min: 30, max: 90 },
+      angle: { min: 0, max: 360 },
+      scale: { start: 1, end: 0 },
+      alpha: { start: 0.9, end: 0 },
+      lifespan: 260,
+      tint: [0x00e5ff, 0xffffff, 0xff9e2d],
+      emitting: false
+    });
+    // Acima da pista e do proprio carro (que ficam no depth padrao 0),
+    // senao o rastro de particulas fica desenhado por baixo do asfalto.
+    this.nitroEmitter.setDepth(1);
   }
 
   get x() {
@@ -77,17 +115,22 @@ export default class Car {
     this.input.throttle = clamp(input.throttle ?? 0, 0, 1);
     this.input.brake = clamp(input.brake ?? 0, 0, 1);
     this.input.steer = clamp(input.steer ?? 0, -1, 1);
+    this.input.nitro = !!input.nitro;
   }
 
-  // speedMultiplier permite boosts temporarios (nitro, Etapa 7).
-  update(deltaSeconds, speedMultiplier = 1) {
+  // externalSpeedMultiplier permite ajustes de fora (ex.: dificuldade da IA).
+  update(deltaSeconds, externalSpeedMultiplier = 1) {
     const def = this.def;
     const { throttle, brake, steer } = this.input;
 
-    const maxSpeed = def.maxSpeed * speedMultiplier;
+    this._updateNitro(deltaSeconds);
+
+    const nitroSpeedMul = this.nitroActive ? NITRO_MAX_SPEED_MULTIPLIER : 1;
+    const nitroAccelMul = this.nitroActive ? NITRO_ACCEL_MULTIPLIER : 1;
+    const maxSpeed = def.maxSpeed * externalSpeedMultiplier * nitroSpeedMul;
 
     if (throttle > 0) {
-      this.speed += def.acceleration * throttle * deltaSeconds;
+      this.speed += def.acceleration * nitroAccelMul * throttle * deltaSeconds;
     } else if (brake > 0 && this.speed > 0) {
       this.speed -= def.braking * brake * deltaSeconds;
     } else if (brake > 0 && this.speed <= 0) {
@@ -113,6 +156,29 @@ export default class Car {
 
     this.sprite.setVelocity(vx, vy);
     this.sprite.setRotation(this.angle);
+
+    this._updateNitroEffect();
+  }
+
+  _updateNitro(deltaSeconds) {
+    const wantsNitro = this.input.nitro && this.nitroAmount > 0 && Math.abs(this.speed) > NITRO_MIN_SPEED_TO_USE;
+
+    if (wantsNitro) {
+      if (!this.nitroActive) playSfx(this.scene, 'nitro');
+      this.nitroActive = true;
+      this.nitroAmount = clamp(this.nitroAmount - (this.nitroCapacity / NITRO_DRAIN_TIME) * deltaSeconds, 0, this.nitroCapacity);
+    } else {
+      this.nitroActive = false;
+      this.nitroAmount = clamp(this.nitroAmount + (this.nitroCapacity / NITRO_RECHARGE_TIME) * deltaSeconds, 0, this.nitroCapacity);
+    }
+  }
+
+  _updateNitroEffect() {
+    if (!this.nitroActive) return;
+
+    const rearX = this.x - Math.cos(this.angle) * (CAR_WIDTH * 0.5);
+    const rearY = this.y - Math.sin(this.angle) * (CAR_WIDTH * 0.5);
+    this.nitroEmitter.emitParticleAt(rearX, rearY, 2);
   }
 
   getSpeedKmh() {
@@ -120,7 +186,12 @@ export default class Car {
     return Math.abs(this.speed) * 0.6;
   }
 
+  getNitroFraction() {
+    return this.nitroCapacity > 0 ? this.nitroAmount / this.nitroCapacity : 0;
+  }
+
   destroy() {
     this.sprite.destroy();
+    this.nitroEmitter.destroy();
   }
 }
