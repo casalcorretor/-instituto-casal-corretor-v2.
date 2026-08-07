@@ -20,6 +20,9 @@ export default class RaceHud {
 
     this.positionText = scene.add.text(16, 14, '', panelStyle).setDepth(150);
     this.lapText = scene.add.text(16, 44, '', { ...panelStyle, fontSize: '18px' }).setDepth(150);
+    this.coinsText = scene.add
+      .text(16, 70, '', { ...panelStyle, fontSize: '18px', color: '#ffd400' })
+      .setDepth(150);
     this.timeText = scene.add
       .text(width / 2, 14, '', { ...panelStyle, fontSize: '20px' })
       .setOrigin(0.5, 0)
@@ -49,6 +52,7 @@ export default class RaceHud {
     this.gameObjects.push(
       this.positionText,
       this.lapText,
+      this.coinsText,
       this.timeText,
       this.speedText,
       this.nitroLabel,
@@ -57,9 +61,10 @@ export default class RaceHud {
     );
   }
 
-  update({ position, totalRacers, lap, totalLaps, raceTime, speedKmh, nitroFraction, formatTime }) {
+  update({ position, totalRacers, lap, totalLaps, raceTime, speedKmh, nitroFraction, coins, formatTime }) {
     this.positionText.setText(`${position}º / ${totalRacers}`);
     this.lapText.setText(`Volta ${Math.min(lap, totalLaps)}/${totalLaps}`);
+    this.coinsText.setText(`🪙 ${coins ?? 0}`);
     this.timeText.setText(formatTime(raceTime));
     this.speedText.setText(`${speedKmh.toFixed(0)} km/h`);
 

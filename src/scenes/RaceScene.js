@@ -6,6 +6,7 @@ import AICar from '../entities/AICar.js';
 import TouchControls from '../ui/TouchControls.js';
 import RaceHud from '../ui/RaceHud.js';
 import RaceManager from '../systems/RaceManager.js';
+import CoinSystem from '../systems/CoinSystem.js';
 import { TRACKS } from '../data/TracksData.js';
 import { CARS, DEFAULT_CAR_ID } from '../data/CarsData.js';
 
@@ -56,6 +57,7 @@ export default class RaceScene extends Phaser.Scene {
     this.trackId = data?.trackId || 'test';
     this.carId = data?.carId || DEFAULT_CAR_ID;
     this.worldObjects = [];
+    this.playerCoins = 0;
   }
 
   create() {
@@ -74,6 +76,7 @@ export default class RaceScene extends Phaser.Scene {
     this._createPlayerCar();
     this._createAiCars();
     this._createRaceManager();
+    this._createCoins();
     this._createKeyboardInput();
     this._createTouchControls();
     this._createUiCamera();
@@ -133,6 +136,14 @@ export default class RaceScene extends Phaser.Scene {
     this.raceManager.addRacer('player', this.playerCar, 0);
     this.aiCars.forEach((ai, index) => {
       this.raceManager.addRacer(AI_OPPONENTS[index].id, ai.car, this.aiGridOffsets[index]);
+    });
+  }
+
+  _createCoins() {
+    this.coinSystem = new CoinSystem(this, { track: this.track });
+    this.worldObjects.push(...this.coinSystem.coinObjects);
+    this.coinSystem.attachCollector(this.playerCar.sprite, () => {
+      this.playerCoins = this.coinSystem.collected * 10;
     });
   }
 
@@ -209,6 +220,7 @@ export default class RaceScene extends Phaser.Scene {
       raceTime: displayTime,
       speedKmh: this.playerCar.getSpeedKmh(),
       nitroFraction: this.playerCar.getNitroFraction(),
+      coins: this.playerCoins,
       formatTime: (s) => this.raceManager.formatTime(s)
     });
 
