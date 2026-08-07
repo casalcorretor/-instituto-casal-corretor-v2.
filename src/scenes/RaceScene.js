@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfig.js';
 import Track from '../entities/Track.js';
 import Car from '../entities/Car.js';
+import TouchControls from '../ui/TouchControls.js';
 import { TRACKS } from '../data/TracksData.js';
 import { CARS, DEFAULT_CAR_ID } from '../data/CarsData.js';
 
@@ -36,6 +37,7 @@ export default class RaceScene extends Phaser.Scene {
     this._markStart();
     this._createPlayerCar();
     this._createKeyboardInput();
+    this._createTouchControls();
     this._createUiCamera();
 
     this.cameras.main.setZoom(1.4);
@@ -65,6 +67,10 @@ export default class RaceScene extends Phaser.Scene {
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
   }
 
+  _createTouchControls() {
+    this.touchControls = new TouchControls(this, { width: GAME_WIDTH, height: GAME_HEIGHT });
+  }
+
   _createUiCamera() {
     this.debugText = this.add
       .text(16, 16, '', {
@@ -75,33 +81,43 @@ export default class RaceScene extends Phaser.Scene {
       })
       .setDepth(100);
 
+    const uiObjects = [this.debugText, ...this.touchControls.gameObjects];
+
     this.uiCamera = this.cameras.add(0, 0, GAME_WIDTH, GAME_HEIGHT);
     this.uiCamera.setScroll(0, 0);
     this.uiCamera.ignore(this.worldObjects);
-    this.cameras.main.ignore([this.debugText]);
+    this.cameras.main.ignore(uiObjects);
   }
 
-  update(time, delta) {
-    const deltaSeconds = delta / 1000;
-
+  _readInput() {
     const up = this.cursors.up.isDown || this.wasd.W.isDown;
     const down = this.cursors.down.isDown || this.wasd.S.isDown;
     const left = this.cursors.left.isDown || this.wasd.A.isDown;
     const right = this.cursors.right.isDown || this.wasd.D.isDown;
 
-    this.playerCar.setInput({
-      throttle: up ? 1 : 0,
-      brake: down ? 1 : 0,
-      steer: (left ? -1 : 0) + (right ? 1 : 0)
-    });
+    const touch = this.touchControls.getState();
 
+    return {
+      throttle: up || touch.throttle ? 1 : 0,
+      brake: down || touch.brake ? 1 : 0,
+      steer: Phaser.Math.Clamp((left ? -1 : 0) + (right ? 1 : 0) + touch.steer, -1, 1),
+      nitro: touch.nitro
+    };
+  }
+
+  update(time, delta) {
+    const deltaSeconds = delta / 1000;
+    const input = this._readInput();
+
+    this.playerCar.setInput(input);
     this.playerCar.update(deltaSeconds);
 
     this.debugText.setText(
       [
-        'Etapa 3: carro e fisica de direcao (WASD/setas, ESC volta ao menu)',
+        'Etapa 4: controles touch (WASD/setas tambem funcionam, ESC volta ao menu)',
         `carro: ${this.playerCar.def.name}`,
-        `velocidade: ${this.playerCar.getSpeedKmh().toFixed(0)} km/h`
+        `velocidade: ${this.playerCar.getSpeedKmh().toFixed(0)} km/h`,
+        `nitro pressionado: ${input.nitro ? 'sim' : 'nao'}`
       ].join('\n')
     );
   }

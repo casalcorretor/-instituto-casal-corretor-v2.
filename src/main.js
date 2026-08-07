@@ -24,7 +24,7 @@ const config = {
     }
   },
   input: {
-    activePointers: 3
+    activePointers: 4
   },
   scene: [BootScene, PreloadScene, MenuScene, RaceScene]
 };
