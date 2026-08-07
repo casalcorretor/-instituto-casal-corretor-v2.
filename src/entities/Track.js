@@ -1,4 +1,4 @@
-import { buildClosedSpline, normalBetween, distance } from '../utils/MathUtils.js';
+import { buildClosedSpline, normalBetween, distance, angleBetween } from '../utils/MathUtils.js';
 
 const ASPHALT_COLOR = 0x2b2f3a;
 const ASPHALT_EDGE_COLOR = 0x1a1d24;
@@ -21,6 +21,7 @@ export default class Track {
 
     this.startPoint = this.points[0];
     this.startDirection = normalBetween(this.points[0], this.points[1]);
+    this.startDirectionAngle = angleBetween(this.points[0], this.points[1]);
 
     this.graphics = scene.add.graphics();
     this.graphics.setDepth(0);
