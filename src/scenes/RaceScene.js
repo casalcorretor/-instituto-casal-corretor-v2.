@@ -3,14 +3,19 @@ import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfi
 import Track from '../entities/Track.js';
 import Car from '../entities/Car.js';
 import TouchControls from '../ui/TouchControls.js';
+import RaceHud from '../ui/RaceHud.js';
+import RaceManager from '../systems/RaceManager.js';
 import { TRACKS } from '../data/TracksData.js';
 import { CARS, DEFAULT_CAR_ID } from '../data/CarsData.js';
 
+const TOTAL_LAPS = 3;
+
 // Cena de corrida. Constroi a pista e o carro do jogador com fisica de
-// direcao arcade. A camera principal segue o carro com zoom; uma segunda
-// camera de UI (zoom fixo em 1, ignorando o mundo) exibe o HUD de debug —
-// esse e o padrao correto do Phaser para HUD nao se distorcer com o zoom
-// da camera de jogo, e sera reaproveitado pelo HUD completo na Etapa 9.
+// direcao arcade, controles touch/teclado, e o sistema de corrida
+// (voltas, tempo, posicao) via RaceManager. A camera principal segue o
+// carro com zoom; uma segunda camera de UI (zoom fixo em 1, ignorando o
+// mundo) exibe o HUD — esse e o padrao correto do Phaser para HUD nao
+// se distorcer com o zoom/follow da camera de jogo.
 export default class RaceScene extends Phaser.Scene {
   constructor() {
     super(SCENE_KEYS.RACE);
@@ -36,6 +41,7 @@ export default class RaceScene extends Phaser.Scene {
 
     this._markStart();
     this._createPlayerCar();
+    this._createRaceManager();
     this._createKeyboardInput();
     this._createTouchControls();
     this._createUiCamera();
@@ -62,6 +68,11 @@ export default class RaceScene extends Phaser.Scene {
     this.worldObjects.push(this.playerCar.sprite);
   }
 
+  _createRaceManager() {
+    this.raceManager = new RaceManager({ track: this.track, totalLaps: TOTAL_LAPS });
+    this.raceManager.addRacer('player', this.playerCar);
+  }
+
   _createKeyboardInput() {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D');
@@ -72,16 +83,19 @@ export default class RaceScene extends Phaser.Scene {
   }
 
   _createUiCamera() {
-    this.debugText = this.add
-      .text(16, 16, '', {
-        fontFamily: 'Arial',
-        fontSize: '16px',
-        color: '#ffffff',
-        backgroundColor: '#000000'
-      })
-      .setDepth(100);
+    this.raceHud = new RaceHud(this, { width: GAME_WIDTH });
 
-    const uiObjects = [this.debugText, ...this.touchControls.gameObjects];
+    this.statusText = this.add
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, '', {
+        fontFamily: 'Arial Black, Arial',
+        fontSize: '40px',
+        color: '#2bd576',
+        align: 'center'
+      })
+      .setOrigin(0.5)
+      .setDepth(150);
+
+    const uiObjects = [this.statusText, ...this.raceHud.gameObjects, ...this.touchControls.gameObjects];
 
     this.uiCamera = this.cameras.add(0, 0, GAME_WIDTH, GAME_HEIGHT);
     this.uiCamera.setScroll(0, 0);
@@ -107,19 +121,33 @@ export default class RaceScene extends Phaser.Scene {
 
   update(time, delta) {
     const deltaSeconds = delta / 1000;
-    const input = this._readInput();
+    const playerRacer = this.raceManager.getRacer('player');
 
-    this.playerCar.setInput(input);
-    this.playerCar.update(deltaSeconds);
+    if (!playerRacer.finished) {
+      const input = this._readInput();
+      this.playerCar.setInput(input);
+      this.playerCar.update(deltaSeconds);
+      this.raceManager.update(deltaSeconds);
+    } else {
+      this.playerCar.setInput({ throttle: 0, brake: 0, steer: 0 });
+      this.playerCar.update(deltaSeconds);
+    }
 
-    this.debugText.setText(
-      [
-        'Etapa 4: controles touch (WASD/setas tambem funcionam, ESC volta ao menu)',
-        `carro: ${this.playerCar.def.name}`,
-        `velocidade: ${this.playerCar.getSpeedKmh().toFixed(0)} km/h`,
-        `nitro pressionado: ${input.nitro ? 'sim' : 'nao'}`
-      ].join('\n')
-    );
+    this.raceHud.update({
+      position: playerRacer.position,
+      totalRacers: this.raceManager.racers.length,
+      lap: playerRacer.lap,
+      totalLaps: TOTAL_LAPS,
+      raceTime: this.raceManager.raceTime,
+      speedKmh: this.playerCar.getSpeedKmh(),
+      formatTime: (s) => this.raceManager.formatTime(s)
+    });
+
+    if (playerRacer.finished && this.statusText.text === '') {
+      this.statusText.setText(
+        `CORRIDA FINALIZADA\nTempo: ${this.raceManager.formatTime(playerRacer.finishTime)}\n(ESC volta ao menu)`
+      );
+    }
   }
 
   _computeTrackBounds(waypoints, roadWidth) {
