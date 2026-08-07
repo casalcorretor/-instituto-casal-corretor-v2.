@@ -5,12 +5,15 @@ import Car from '../entities/Car.js';
 import AICar from '../entities/AICar.js';
 import TouchControls from '../ui/TouchControls.js';
 import RaceHud from '../ui/RaceHud.js';
+import Minimap, { MINIMAP_SIZE } from '../ui/Minimap.js';
 import RaceManager from '../systems/RaceManager.js';
 import CoinSystem from '../systems/CoinSystem.js';
+import { addCoins, recordRaceResult } from '../systems/PlayerProfile.js';
 import { TRACKS } from '../data/TracksData.js';
 import { CARS, DEFAULT_CAR_ID } from '../data/CarsData.js';
 
 const TOTAL_LAPS = 3;
+const FINISH_TO_RESULT_DELAY = 1400;
 
 // Adversarios de IA da corrida de teste: 3 dificuldades exigidas pela
 // spec (facil/normal/dificil), cada um com cor propria para dar pra
@@ -80,6 +83,7 @@ export default class RaceScene extends Phaser.Scene {
     this._createKeyboardInput();
     this._createTouchControls();
     this._createUiCamera();
+    this._createMinimap();
 
     this.cameras.main.setZoom(1.4);
     this.cameras.main.startFollow(this.playerCar.sprite, true, 0.08, 0.08);
@@ -177,6 +181,15 @@ export default class RaceScene extends Phaser.Scene {
     this.cameras.main.ignore(uiObjects);
   }
 
+  _createMinimap() {
+    this.minimap = new Minimap(this, {
+      track: this.track,
+      x: GAME_WIDTH - MINIMAP_SIZE - 16,
+      y: 50
+    });
+    this.cameras.main.ignore(this.minimap.gameObjects);
+  }
+
   _readInput() {
     const up = this.cursors.up.isDown || this.wasd.W.isDown;
     const down = this.cursors.down.isDown || this.wasd.S.isDown;
@@ -224,11 +237,39 @@ export default class RaceScene extends Phaser.Scene {
       formatTime: (s) => this.raceManager.formatTime(s)
     });
 
+    this.minimap.update([
+      { x: this.playerCar.x, y: this.playerCar.y, color: 0x00e5ff, isPlayer: true },
+      ...this.aiCars.map((ai, index) => ({ x: ai.x, y: ai.y, color: AI_OPPONENTS[index].bodyColor, isPlayer: false }))
+    ]);
+
     if (playerRacer.finished && this.statusText.text === '') {
       this.statusText.setText(
-        `CORRIDA FINALIZADA\nTempo: ${this.raceManager.formatTime(playerRacer.finishTime)}\n(ESC volta ao menu)`
+        `CORRIDA FINALIZADA\nTempo: ${this.raceManager.formatTime(playerRacer.finishTime)}`
       );
+      this._goToResultScreen(playerRacer);
     }
+  }
+
+  _goToResultScreen(playerRacer) {
+    const positionBonus = { 1: 100, 2: 50, 3: 25 }[playerRacer.position] ?? 0;
+    const totalEarned = this.playerCoins + positionBonus;
+    addCoins(totalEarned);
+    const isNewBest = recordRaceResult(this.trackId, playerRacer.finishTime);
+
+    this.time.delayedCall(FINISH_TO_RESULT_DELAY, () => {
+      this.scene.start(SCENE_KEYS.RESULT, {
+        trackId: this.trackId,
+        carId: this.carId,
+        position: playerRacer.position,
+        totalRacers: this.raceManager.racers.length,
+        finishTime: playerRacer.finishTime,
+        coinsCollected: this.playerCoins,
+        positionBonus,
+        totalEarned,
+        isNewBest,
+        formattedTime: this.raceManager.formatTime(playerRacer.finishTime)
+      });
+    });
   }
 
   _computeTrackBounds(waypoints, roadWidth) {
