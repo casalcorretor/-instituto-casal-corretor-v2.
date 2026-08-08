@@ -79,9 +79,21 @@ export default class MenuScene extends Phaser.Scene {
         color: '#ffc93c'
       })
       .setOrigin(1, 0);
+
+    // Nivel/XP (Etapa 16) — mesmo tipo de exibicao provisoria que as
+    // moedas ja tinham, so pra confirmar visualmente; o HUD real do
+    // menu entra na Etapa 17.
+    this.levelText = this.add
+      .text(GAME_WIDTH - 16, 38, '', {
+        fontFamily: 'Arial',
+        fontSize: '13px',
+        color: '#8fb3c9'
+      })
+      .setOrigin(1, 0);
   }
 
   update() {
     this.coinsText.setText(`moedas: ${PlayerProfile.getCoins()}`);
+    this.levelText.setText(`nivel ${PlayerProfile.getLevel()} (${PlayerProfile.getXp()}/${PlayerProfile.getXpToNextLevel()} XP)`);
   }
 }

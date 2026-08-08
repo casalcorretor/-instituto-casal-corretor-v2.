@@ -361,6 +361,7 @@ export default class MatchScene extends Phaser.Scene {
           score: { ...this.matchManager.score },
           winner: this.matchManager.winner,
           coinRewards: this.matchManager.getCoinRewards(),
+          xpRewards: this.matchManager.getXpRewards(),
           arenaId: this.arenaId,
           carId: this.carId
         });

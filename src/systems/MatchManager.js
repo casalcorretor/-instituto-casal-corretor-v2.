@@ -13,6 +13,17 @@ export const COIN_REWARDS = {
   matchBonus: 200
 };
 
+// XP por resultado (Etapa 16), mesma logica das moedas — vitoria da
+// mais, mas toda partida da alguma coisa (nao punir por jogar).
+export const XP_REWARDS = {
+  victory: 150,
+  defeat: 60,
+  draw: 100,
+  goal: 15,
+  assist: 8,
+  matchBonus: 30
+};
+
 // Administra placar, cronômetro e o fim de uma partida:
 //  - Tempo normal: 5 minutos (MATCH_DURATION).
 //  - Se o tempo acaba empatado, entra em "morte súbita" (overtime):
@@ -67,6 +78,17 @@ export default class MatchManager {
     return {
       blue: COIN_REWARDS[blueResult] + this.score.blue * COIN_REWARDS.goal + COIN_REWARDS.matchBonus,
       red: COIN_REWARDS[redResult] + this.score.red * COIN_REWARDS.goal + COIN_REWARDS.matchBonus
+    };
+  }
+
+  // Mesma ideia do getCoinRewards(), mas pra XP (Etapa 16).
+  getXpRewards() {
+    const blueResult = this.winner === 'blue' ? 'victory' : this.winner === 'red' ? 'defeat' : 'draw';
+    const redResult = this.winner === 'red' ? 'victory' : this.winner === 'blue' ? 'defeat' : 'draw';
+
+    return {
+      blue: XP_REWARDS[blueResult] + this.score.blue * XP_REWARDS.goal + XP_REWARDS.matchBonus,
+      red: XP_REWARDS[redResult] + this.score.red * XP_REWARDS.goal + XP_REWARDS.matchBonus
     };
   }
 

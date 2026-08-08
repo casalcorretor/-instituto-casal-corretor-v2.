@@ -6,6 +6,16 @@ import { CARS, DEFAULT_CAR_ID } from '../data/CarsData.js';
 // valor fica pronto aqui, sem UI ainda pra resgatar.
 export const DAILY_BONUS_RANGE = { min: 500, max: 2000 };
 
+// Curva de XP necessaria pra passar de nivel: cresce linearmente (nivel
+// 1->2 pede 500, 2->3 pede 750, 3->4 pede 1000, ...). Simples de
+// prever e facil de ajustar num lugar so.
+const LEVEL_BASE_XP = 500;
+const LEVEL_XP_GROWTH = 250;
+
+function xpNeededForLevel(level) {
+  return LEVEL_BASE_XP + (level - 1) * LEVEL_XP_GROWTH;
+}
+
 const state = {
   coins: 0,
   level: 1,
@@ -106,6 +116,29 @@ const PlayerProfile = {
 
   getXp() {
     return state.xp;
+  },
+
+  getXpToNextLevel() {
+    return xpNeededForLevel(state.level);
+  },
+
+  // Soma XP e sobe de nivel automaticamente quantas vezes o total
+  // permitir (ex.: um ganho grande pode subir 2+ niveis de uma vez).
+  // Retorna informacao pra UI mostrar "subiu de nivel!" se for o caso.
+  addXp(amount) {
+    if (amount <= 0) {
+      return { level: state.level, xp: state.xp, leveledUp: false, levelsGained: 0 };
+    }
+
+    state.xp += Math.floor(amount);
+    let levelsGained = 0;
+    while (state.xp >= xpNeededForLevel(state.level)) {
+      state.xp -= xpNeededForLevel(state.level);
+      state.level += 1;
+      levelsGained += 1;
+    }
+
+    return { level: state.level, xp: state.xp, leveledUp: levelsGained > 0, levelsGained };
   },
 
   // Exposto pra debug/testes; a UI real de nivel/XP entra na Etapa 16.
