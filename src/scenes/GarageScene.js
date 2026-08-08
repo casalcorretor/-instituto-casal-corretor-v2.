@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfig.js';
 import { CARS } from '../data/CarsData.js';
 import { generateCarTexture } from '../entities/Car.js';
+import { getRarity, rarityColorHex } from '../data/RarityData.js';
 import PlayerProfile from '../systems/PlayerProfile.js';
 
 const CARD_WIDTH = 150;
@@ -93,10 +94,10 @@ export default class GarageScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     const rarityText = this.add
-      .text(x, y + 12, carDef.rarity.toUpperCase(), {
+      .text(x, y + 12, getRarity(carDef.rarity).label.toUpperCase(), {
         fontFamily: 'Arial',
         fontSize: '10px',
-        color: '#ffc93c'
+        color: rarityColorHex(carDef.rarity)
       })
       .setOrigin(0.5);
 

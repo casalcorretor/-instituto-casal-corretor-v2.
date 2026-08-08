@@ -1,5 +1,7 @@
+import Phaser from 'phaser';
 import { clamp } from '../utils/MathUtils.js';
 import { playSfx } from '../systems/AudioManager.js';
+import { getRarity } from '../data/RarityData.js';
 
 const CAR_WIDTH = 38;
 const CAR_HEIGHT = 22;
@@ -15,6 +17,8 @@ const BOOST_SPEED_MULTIPLIER = 1.35; // teto de velocidade sobe enquanto usa tur
 const BOOST_MIN_TO_START = 4; // precisa desse tanto na barra pra comecar a usar
 
 const PARTICLE_TEXTURE_KEY = 'car_boost_particle';
+const AURA_TEXTURE_KEY = 'car_aura_particle';
+const AURA_ORBIT_RADIUS = 26; // raio em que as particulas do efeito exclusivo orbitam o carro
 
 // Desenha, uma unica vez, a textura de um carro (visto de cima) e a
 // registra na textura manager da cena. Nunca chamado por frame — gera
@@ -73,6 +77,22 @@ function generateBoostParticleTexture(scene) {
   g.destroy();
 }
 
+// Particula de "brilho" (sparkle), usada so pelo efeito visual
+// exclusivo dos carros lendarios/misticos (RarityData.specialEffect).
+function generateAuraParticleTexture(scene) {
+  if (scene.textures.exists(AURA_TEXTURE_KEY)) return;
+
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(5, 5, 2);
+  g.fillTriangle(5, 0, 6.4, 5, 3.6, 5);
+  g.fillTriangle(5, 10, 6.4, 5, 3.6, 5);
+  g.fillTriangle(0, 5, 5, 6.4, 5, 3.6);
+  g.fillTriangle(10, 5, 5, 6.4, 5, 3.6);
+  g.generateTexture(AURA_TEXTURE_KEY, 10, 10);
+  g.destroy();
+}
+
 // Carro com fisica arcade no plano do chao (acelerar/frear/virar) mais
 // um eixo Z simulado (altura) pra pulo e disputa de bola no ar — sem
 // precisar de um motor de fisica 3D. Enquanto no ar, o acelerador e o
@@ -122,6 +142,27 @@ export default class Car {
       emitting: false
     });
     this.boostEmitter.setDepth(4);
+
+    // Efeito visual exclusivo pra carros lendarios/misticos: um brilho
+    // orbitando o carro o tempo todo (nao so ao usar turbo), pra
+    // diferenciar essas raridades a distancia mesmo parado.
+    this.rarity = getRarity(carDef.rarity);
+    if (this.rarity.specialEffect) {
+      generateAuraParticleTexture(scene);
+      this.auraEmitter = scene.add.particles(0, 0, AURA_TEXTURE_KEY, {
+        emitZone: { type: 'random', source: new Phaser.Geom.Circle(0, 0, AURA_ORBIT_RADIUS) },
+        speed: { min: 4, max: 14 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 0.7, end: 0 },
+        alpha: { start: 0.9, end: 0 },
+        lifespan: 650,
+        frequency: 70,
+        tint: this.rarity.color
+      });
+      this.auraEmitter.setDepth(4);
+    } else {
+      this.auraEmitter = null;
+    }
 
     this.speed = 0;
     this.angle = angle;
@@ -261,6 +302,10 @@ export default class Car {
       const rearY = visualY - Math.sin(this.angle) * (CAR_WIDTH * 0.5);
       this.boostEmitter.emitParticleAt(rearX, rearY, 2);
     }
+
+    if (this.auraEmitter) {
+      this.auraEmitter.setPosition(this.sprite.x, visualY);
+    }
   }
 
   getSpeedKmh() {
@@ -280,5 +325,6 @@ export default class Car {
     this.shadow.destroy();
     this.visual.destroy();
     this.boostEmitter.destroy();
+    if (this.auraEmitter) this.auraEmitter.destroy();
   }
 }
