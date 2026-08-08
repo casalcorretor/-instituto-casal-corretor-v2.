@@ -12,6 +12,10 @@ import CoinSystem from '../systems/CoinSystem.js';
 import { addCoins, recordRaceResult, unlockNextTrackIfWon } from '../systems/PlayerProfile.js';
 import { TRACKS, DEFAULT_TRACK_ID } from '../data/TracksData.js';
 import { CARS, DEFAULT_CAR_ID } from '../data/CarsData.js';
+import { createRaceMusic, EngineSound, playSfx } from '../systems/AudioManager.js';
+
+const COLLISION_SFX_COOLDOWN = 500;
+const BRAKE_SFX_MIN_SPEED_RATIO = 0.35;
 
 const TOTAL_LAPS = 3;
 const FINISH_TO_RESULT_DELAY = 1400;
@@ -88,6 +92,7 @@ export default class RaceScene extends Phaser.Scene {
     this._createTouchControls();
     this._createUiCamera();
     this._createMinimap();
+    this._createAudio();
 
     this.cameras.main.setZoom(1.4);
     this.cameras.main.startFollow(this.playerCar.sprite, true, 0.08, 0.08);
@@ -194,6 +199,31 @@ export default class RaceScene extends Phaser.Scene {
     this.cameras.main.ignore(this.minimap.gameObjects);
   }
 
+  _createAudio() {
+    this.raceMusic = createRaceMusic();
+    this.raceMusic.start();
+
+    this.engineSound = new EngineSound();
+    this.lastCollisionSfxAt = 0;
+    this.lastBrakeSfxAt = 0;
+
+    this.aiCars.forEach((ai) => {
+      this.physics.add.collider(this.playerCar.sprite, ai.sprite, () => this._onCarCollision());
+    });
+
+    this.events.once('shutdown', () => {
+      this.raceMusic.stop();
+      this.engineSound.stop();
+    });
+  }
+
+  _onCarCollision() {
+    const now = this.time.now;
+    if (now - this.lastCollisionSfxAt < COLLISION_SFX_COOLDOWN) return;
+    this.lastCollisionSfxAt = now;
+    playSfx(this, 'collision');
+  }
+
   _readInput() {
     const up = this.cursors.up.isDown || this.wasd.W.isDown;
     const down = this.cursors.down.isDown || this.wasd.S.isDown;
@@ -217,10 +247,24 @@ export default class RaceScene extends Phaser.Scene {
     if (!playerRacer.finished) {
       const input = this._readInput();
       this.playerCar.setInput(input);
+
+      const speedRatio = Math.abs(this.playerCar.speed) / this.playerCar.def.maxSpeed;
+      if (input.brake && speedRatio > BRAKE_SFX_MIN_SPEED_RATIO) {
+        const now = this.time.now;
+        if (now - this.lastBrakeSfxAt > COLLISION_SFX_COOLDOWN) {
+          this.lastBrakeSfxAt = now;
+          playSfx(this, 'brake');
+        }
+      }
     } else {
       this.playerCar.setInput({ throttle: 0, brake: 0, steer: 0 });
     }
     this.playerCar.update(deltaSeconds);
+
+    this.engineSound.update(
+      Math.abs(this.playerCar.speed) / this.playerCar.def.maxSpeed,
+      !playerRacer.finished
+    );
 
     const avoidanceList = [...this.aiCars, { x: this.playerCar.x, y: this.playerCar.y }];
     this.aiCars.forEach((ai) => ai.update(deltaSeconds, avoidanceList));

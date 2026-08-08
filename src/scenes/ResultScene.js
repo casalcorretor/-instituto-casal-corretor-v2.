@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfig.js';
+import { playSfx } from '../systems/AudioManager.js';
 
 // Tela de resultado ao fim da corrida: posicao, tempo, moedas ganhas,
 // recompensa por posicao, e os botoes PROXIMA CORRIDA / MENU pedidos
@@ -28,6 +29,7 @@ export default class ResultScene extends Phaser.Scene {
     } = this.result;
 
     const isWin = position === 1;
+    playSfx(this, isWin ? 'victory' : 'defeat');
 
     this.add
       .text(GAME_WIDTH / 2, 70, isWin ? 'VITÓRIA!' : `${position}º LUGAR`, {

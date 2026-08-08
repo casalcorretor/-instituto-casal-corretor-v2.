@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfig.js';
 import { getProfile } from '../systems/PlayerProfile.js';
+import { setVolumes } from '../systems/AudioManager.js';
 
 const BAR_WIDTH = 220;
 const BAR_HEIGHT = 14;
@@ -62,10 +63,12 @@ export default class SettingsScene extends Phaser.Scene {
     this._createStepButton(barX + BAR_WIDTH + 30, y, '-', () => {
       this.profile.settings[key] = Phaser.Math.Clamp(this.profile.settings[key] - 0.1, 0, 1);
       render();
+      setVolumes(this.profile.settings);
     });
     this._createStepButton(barX + BAR_WIDTH + 70, y, '+', () => {
       this.profile.settings[key] = Phaser.Math.Clamp(this.profile.settings[key] + 0.1, 0, 1);
       render();
+      setVolumes(this.profile.settings);
     });
   }
 

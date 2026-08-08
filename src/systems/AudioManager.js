@@ -1,10 +1,219 @@
-// Ponto unico de reproducao de efeitos sonoros. Por enquanto e um
-// stub seguro: se o som ainda nao foi carregado (Etapa 12 carrega os
-// arquivos de audio de verdade), simplesmente nao toca nada em vez de
-// lancar erro. Sistemas como o nitro (Etapa 7) ja chamam playSfx() —
-// quando a Etapa 12 registrar os sons, eles passam a tocar sem
-// precisar mudar quem chama.
-export function playSfx(scene, key, config = {}) {
-  if (!scene?.sound || !scene.cache.audio.exists(key)) return;
-  scene.sound.play(key, config);
+// Todo o audio do jogo e sintetizado em codigo via Web Audio API —
+// osciladores para motor/nitro/moedas/musica, ruido branco filtrado
+// para colisao/frenagem. Isso evita depender de arquivos de audio
+// externos (que poderiam ter direitos autorais) e mantem o pacote
+// leve. Os volumes vem de PlayerProfile.settings (Etapa 9/13).
+
+let audioCtx = null;
+let masterGain = null;
+let musicGain = null;
+let sfxGain = null;
+let unlocked = false;
+
+function ensureContext() {
+  if (audioCtx) return audioCtx;
+
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+
+  audioCtx = new Ctx();
+  masterGain = audioCtx.createGain();
+  masterGain.connect(audioCtx.destination);
+
+  musicGain = audioCtx.createGain();
+  musicGain.gain.value = 0.7;
+  musicGain.connect(masterGain);
+
+  sfxGain = audioCtx.createGain();
+  sfxGain.gain.value = 0.8;
+  sfxGain.connect(masterGain);
+
+  return audioCtx;
+}
+
+// Navegadores só deixam o audio tocar depois de um gesto do usuário.
+// Chamado uma vez no primeiro toque/clique da pagina (ver main.js).
+export function unlockAudio() {
+  const ctx = ensureContext();
+  if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  unlocked = true;
+}
+
+export function isAudioUnlocked() {
+  return unlocked;
+}
+
+export function setVolumes({ musicVolume, sfxVolume }) {
+  const ctx = ensureContext();
+  if (!ctx) return;
+  musicGain.gain.setTargetAtTime(musicVolume, ctx.currentTime, 0.05);
+  sfxGain.gain.setTargetAtTime(sfxVolume, ctx.currentTime, 0.05);
+}
+
+function playTone({ freq = 440, duration = 0.15, type = 'square', volume = 0.3, sweepTo = null } = {}) {
+  const ctx = ensureContext();
+  if (!ctx) return;
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, ctx.currentTime);
+  if (sweepTo) osc.frequency.exponentialRampToValueAtTime(sweepTo, ctx.currentTime + duration);
+
+  gain.gain.setValueAtTime(volume, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+
+  osc.connect(gain);
+  gain.connect(sfxGain);
+  osc.start();
+  osc.stop(ctx.currentTime + duration);
+}
+
+function playNoiseBurst({ duration = 0.25, volume = 0.4, filterFreq = 1200 } = {}) {
+  const ctx = ensureContext();
+  if (!ctx) return;
+
+  const bufferSize = Math.max(1, Math.floor(ctx.sampleRate * duration));
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+  }
+
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = filterFreq;
+
+  const gain = ctx.createGain();
+  gain.gain.value = volume;
+
+  src.connect(filter);
+  filter.connect(gain);
+  gain.connect(sfxGain);
+  src.start();
+}
+
+const SFX = {
+  coin: () => playTone({ freq: 880, duration: 0.1, type: 'square', volume: 0.25, sweepTo: 1320 }),
+  nitro: () => playTone({ freq: 220, duration: 0.3, type: 'sawtooth', volume: 0.2, sweepTo: 520 }),
+  collision: () => playNoiseBurst({ duration: 0.2, volume: 0.45, filterFreq: 900 }),
+  brake: () => playNoiseBurst({ duration: 0.15, volume: 0.2, filterFreq: 2200 }),
+  victory: () => {
+    [523, 659, 784, 1046].forEach((freq, i) =>
+      setTimeout(() => playTone({ freq, duration: 0.25, type: 'triangle', volume: 0.3 }), i * 110)
+    );
+  },
+  defeat: () => {
+    [440, 392, 330].forEach((freq, i) =>
+      setTimeout(() => playTone({ freq, duration: 0.35, type: 'triangle', volume: 0.25 }), i * 160)
+    );
+  },
+  click: () => playTone({ freq: 500, duration: 0.06, type: 'square', volume: 0.15 })
+};
+
+// Compativel com o stub da Etapa 7: playSfx(scene, 'nitro') etc. O
+// parametro scene nao e mais necessario (audio agora e global, nao
+// por cena), mas mantido pra nao precisar mudar quem ja chama.
+export function playSfx(_scene, key) {
+  SFX[key]?.();
+}
+
+// Som de motor continuo, com tom subindo conforme a velocidade.
+// Uma instancia por carro que precisa de som de motor (so o jogador,
+// pra nao virar uma cacofonia com a IA tambem).
+export class EngineSound {
+  constructor() {
+    const ctx = ensureContext();
+    this.ctx = ctx;
+    if (!ctx) return;
+
+    this.osc = ctx.createOscillator();
+    this.osc.type = 'sawtooth';
+    this.osc.frequency.value = 55;
+
+    this.filter = ctx.createBiquadFilter();
+    this.filter.type = 'lowpass';
+    this.filter.frequency.value = 700;
+
+    this.gain = ctx.createGain();
+    this.gain.gain.value = 0;
+
+    this.osc.connect(this.filter);
+    this.filter.connect(this.gain);
+    this.gain.connect(sfxGain);
+    this.osc.start();
+  }
+
+  // speedRatio: 0..1 da velocidade em relacao ao maximo do carro.
+  update(speedRatio, audible = true) {
+    if (!this.ctx) return;
+    const freq = 55 + speedRatio * 260;
+    const targetGain = audible ? 0.05 + speedRatio * 0.09 : 0;
+    this.osc.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.06);
+    this.gain.gain.setTargetAtTime(targetGain, this.ctx.currentTime, 0.08);
+  }
+
+  stop() {
+    if (!this.ctx) return;
+    this.gain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.1);
+    const osc = this.osc;
+    setTimeout(() => {
+      try {
+        osc.stop();
+      } catch {
+        // ja parado
+      }
+    }, 300);
+  }
+}
+
+// Musica simples: sequencia de notas curtas tocando em loop. `notes`
+// aceita `null` para um silencio (pausa ritmica).
+export class MusicLoop {
+  constructor(notes, stepMs, { type = 'triangle', volume = 0.12 } = {}) {
+    this.notes = notes;
+    this.stepMs = stepMs;
+    this.type = type;
+    this.volume = volume;
+    this.index = 0;
+    this.timerId = null;
+  }
+
+  start() {
+    this.stop();
+    const ctx = ensureContext();
+    if (!ctx) return;
+
+    const step = () => {
+      const freq = this.notes[this.index % this.notes.length];
+      if (freq) {
+        playTone({ freq, duration: this.stepMs / 1000 + 0.05, type: this.type, volume: this.volume });
+      }
+      this.index += 1;
+      this.timerId = setTimeout(step, this.stepMs);
+    };
+
+    step();
+  }
+
+  stop() {
+    if (this.timerId) clearTimeout(this.timerId);
+    this.timerId = null;
+    this.index = 0;
+  }
+}
+
+const MENU_NOTES = [392, null, 523, 587, null, 523, 466, null];
+const RACE_NOTES = [220, 220, 330, 220, 262, 220, 330, 294];
+
+export function createMenuMusic() {
+  return new MusicLoop(MENU_NOTES, 260, { type: 'triangle', volume: 0.1 });
+}
+
+export function createRaceMusic() {
+  return new MusicLoop(RACE_NOTES, 180, { type: 'square', volume: 0.06 });
 }

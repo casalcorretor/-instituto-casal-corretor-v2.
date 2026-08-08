@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfig.js';
 import { getProfile, getBestTime } from '../systems/PlayerProfile.js';
+import { createMenuMusic, playSfx } from '../systems/AudioManager.js';
 
 // Menu principal: RUSH DRIVE, botoes JOGAR/GARAGEM/PISTAS/CONFIGURACOES,
 // moedas e melhor resultado. Garagem e Pistas ja tem cena dedicada nas
@@ -14,6 +15,10 @@ export default class MenuScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor(COLORS.background);
     const profile = getProfile();
+
+    this.music = createMenuMusic();
+    this.music.start();
+    this.events.once('shutdown', () => this.music.stop());
 
     this.add
       .text(GAME_WIDTH / 2, 90, 'RUSH DRIVE', {
@@ -117,7 +122,10 @@ export default class MenuScene extends Phaser.Scene {
       .text(x, y, label, { fontFamily: 'Arial Black, Arial', fontSize: '20px', color: colorHex })
       .setOrigin(0.5);
 
-    box.on('pointerdown', onClick);
+    box.on('pointerdown', () => {
+      playSfx(this, 'click');
+      onClick();
+    });
     box.on('pointerover', () => box.setFillStyle(0x0b1220, 0.95));
     box.on('pointerout', () => box.setFillStyle(0x0b1220, 0.7));
 

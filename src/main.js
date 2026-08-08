@@ -8,6 +8,8 @@ import ResultScene from './scenes/ResultScene.js';
 import SettingsScene from './scenes/SettingsScene.js';
 import GarageScene from './scenes/GarageScene.js';
 import TrackSelectScene from './scenes/TrackSelectScene.js';
+import { unlockAudio, setVolumes } from './systems/AudioManager.js';
+import { getProfile } from './systems/PlayerProfile.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -38,3 +40,15 @@ const game = new Phaser.Game(config);
 if (import.meta.env.DEV) {
   window.__RUSH_DRIVE_GAME__ = game;
 }
+
+// Navegadores exigem um gesto do usuario antes de tocar audio; o
+// primeiro toque/clique na pagina destrava o AudioContext e aplica os
+// volumes salvos no perfil.
+function unlockAudioOnce() {
+  unlockAudio();
+  setVolumes(getProfile().settings);
+  window.removeEventListener('pointerdown', unlockAudioOnce);
+  window.removeEventListener('keydown', unlockAudioOnce);
+}
+window.addEventListener('pointerdown', unlockAudioOnce);
+window.addEventListener('keydown', unlockAudioOnce);
