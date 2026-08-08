@@ -9,6 +9,7 @@ import MatchManager from '../systems/MatchManager.js';
 import AIController from '../systems/AIController.js';
 import { ARENAS, DEFAULT_ARENA_ID, ARENA_WIDTH, ARENA_HEIGHT } from '../data/ArenasData.js';
 import { CARS, DEFAULT_CAR_ID } from '../data/CarsData.js';
+import PlayerProfile from '../systems/PlayerProfile.js';
 
 const BASE_HIT_IMPULSE = 420;
 const VERTICAL_HIT_BASE = 380;
@@ -26,7 +27,7 @@ export default class MatchScene extends Phaser.Scene {
 
   init(data) {
     this.arenaId = data?.arenaId || DEFAULT_ARENA_ID;
-    this.carId = data?.carId || DEFAULT_CAR_ID;
+    this.carId = data?.carId || PlayerProfile.getEquippedCarId() || DEFAULT_CAR_ID;
     this.worldObjects = [];
     this.celebrating = false;
     this._resultTriggered = false;
