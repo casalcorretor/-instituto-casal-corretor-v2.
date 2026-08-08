@@ -60,10 +60,13 @@ export default class ShopScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(10);
 
+    // Fica no canto superior, dentro da faixa de cabecalho fixa — nao
+    // no rodape, onde a grade de carros (que rola) acabaria passando
+    // por cima dele e sobrepondo o texto (bug encontrado na Etapa 21).
     const backButton = this.add
-      .text(20, GAME_HEIGHT - 30, '[ VOLTAR ]', {
+      .text(16, 14, '[ VOLTAR ]', {
         fontFamily: 'Arial',
-        fontSize: '18px',
+        fontSize: '16px',
         color: '#8fb3c9'
       })
       .setInteractive({ useHandCursor: true })
