@@ -2,9 +2,13 @@ import Phaser from 'phaser';
 import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfig.js';
 import Arena from '../entities/Arena.js';
 import Car from '../entities/Car.js';
+import Ball from '../entities/Ball.js';
 import TouchControls from '../ui/TouchControls.js';
 import { ARENAS, DEFAULT_ARENA_ID, ARENA_WIDTH, ARENA_HEIGHT } from '../data/ArenasData.js';
 import { CARS, DEFAULT_CAR_ID } from '../data/CarsData.js';
+
+const BASE_HIT_IMPULSE = 420;
+const VERTICAL_HIT_BASE = 380;
 
 // Cena de partida. Constroi a arena e o carro do jogador com fisica
 // (chao + altura simulada pro pulo) e controles touch/teclado. A
@@ -32,6 +36,7 @@ export default class MatchScene extends Phaser.Scene {
     this.physics.world.setBounds(-80, -80, ARENA_WIDTH + 160, ARENA_HEIGHT + 160);
 
     this._createPlayerCar();
+    this._createBall();
     this._createKeyboardInput();
     this._createTouchControls();
     this._createUiCamera();
@@ -55,7 +60,41 @@ export default class MatchScene extends Phaser.Scene {
     });
 
     this.physics.add.collider(this.playerCar.sprite, this.arena.walls);
-    this.worldObjects.push(this.playerCar.sprite, this.playerCar.shadow);
+    this.worldObjects.push(this.playerCar.shadow, this.playerCar.visual);
+  }
+
+  _createBall() {
+    this.ball = new Ball(this, { x: ARENA_WIDTH / 2, y: ARENA_HEIGHT / 2 });
+    this.worldObjects.push(this.ball.shadow, this.ball.visual);
+
+    this.physics.add.collider(this.ball.sprite, this.arena.walls);
+    this.physics.add.collider(this.playerCar.sprite, this.ball.sprite, () =>
+      this._onCarHitBall(this.playerCar, this.ball)
+    );
+  }
+
+  // Colisao carro-bola: alem da resposta fisica automatica do Arcade
+  // (massa/bounce), aplica um empurrao adicional na direcao carro->bola
+  // escalado pelo atributo "impact" do carro (carros mais pesados/
+  // impactantes chutam mais forte). Se o carro estiver no ar e perto o
+  // suficiente da altura da bola, tambem da um impulso vertical —
+  // assim da pra "cabecear" a bola pro alto pulando nela.
+  _onCarHitBall(car, ball) {
+    const dx = ball.x - car.x;
+    const dy = ball.y - car.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const dirX = dx / dist;
+    const dirY = dy / dist;
+
+    const carSpeed = Math.abs(car.speed);
+    const pushStrength = (BASE_HIT_IMPULSE + carSpeed) * car.def.impact;
+
+    ball.sprite.body.velocity.x += dirX * pushStrength * 0.016;
+    ball.sprite.body.velocity.y += dirY * pushStrength * 0.016;
+
+    if (!car.isGrounded && ball.canBeHitVerticallyBy(car.z)) {
+      ball.applyVerticalHit(VERTICAL_HIT_BASE * car.def.impact);
+    }
   }
 
   _createKeyboardInput() {
@@ -116,14 +155,13 @@ export default class MatchScene extends Phaser.Scene {
 
     this.playerCar.setInput(input);
     this.playerCar.update(deltaSeconds);
+    this.ball.update(deltaSeconds);
 
     this.debugText.setText(
       [
-        'Etapa 4: controles touch (WASD/setas tambem funcionam, ESC volta ao menu)',
-        `velocidade: ${this.playerCar.getSpeedKmh().toFixed(0)} km/h`,
-        `altura (z): ${this.playerCar.z.toFixed(0)}`,
-        `no chao: ${this.playerCar.isGrounded ? 'sim' : 'nao'}`,
-        `turbo pressionado: ${input.boost ? 'sim' : 'nao'}`
+        'Etapa 5: bola (WASD/setas, ESPACO pula, ESC volta ao menu)',
+        `carro: ${this.playerCar.getSpeedKmh().toFixed(0)} km/h | z=${this.playerCar.z.toFixed(0)}`,
+        `bola: z=${this.ball.z.toFixed(0)} | vel=${Math.hypot(this.ball.sprite.body.velocity.x, this.ball.sprite.body.velocity.y).toFixed(0)}`
       ].join('\n')
     );
   }

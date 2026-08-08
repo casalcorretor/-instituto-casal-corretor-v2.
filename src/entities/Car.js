@@ -3,7 +3,7 @@ import { clamp } from '../utils/MathUtils.js';
 const CAR_WIDTH = 38;
 const CAR_HEIGHT = 22;
 const GRAVITY = 1400;
-const HEIGHT_SCALE = 0.62; // quanto a altura "z" desloca o sprite na tela
+const HEIGHT_SCALE = 0.62; // quanto a altura "z" desloca o desenho na tela
 const SHADOW_MAX_ALPHA = 0.45;
 const SHADOW_MIN_SCALE = 0.35;
 const AIR_STEER_FACTOR = 0.35; // controle aereo e mais lento que no chao
@@ -60,6 +60,15 @@ function generateShadowTexture(scene) {
 // precisar de um motor de fisica 3D. Enquanto no ar, o acelerador e o
 // freio nao fazem nada (rodas nao tocam o chao), mas ainda da pra
 // virar (controle aereo basico), mais lento que no chao.
+//
+// O corpo fisico (this.sprite) fica sempre na posicao real de chao e
+// NUNCA e deslocado visualmente — testei deslocar sprite.y direto pra
+// simular altura e descobri que o Arcade Physics absorve essa mudanca
+// de volta no corpo fisico no frame seguinte (ele resincroniza o corpo
+// a partir do transform do GameObject), causando deriva de posicao
+// que ia se acumulando. A correcao: um sprite visual SEPARADO, sem
+// fisica, que so copia a posicao do corpo fisico e recebe o
+// deslocamento de altura pra desenho.
 export default class Car {
   constructor(scene, { x, y, angle = 0, carDef, textureKey }) {
     this.scene = scene;
@@ -71,13 +80,16 @@ export default class Car {
     this.shadow = scene.add.image(x, y, shadowKey).setDepth(4).setAlpha(SHADOW_MAX_ALPHA);
 
     this.sprite = scene.physics.add.image(x, y, textureKey);
-    this.sprite.setDepth(5);
-    this.sprite.setRotation(angle);
+    this.sprite.setVisible(false);
     this.sprite.body.setSize(CAR_WIDTH, CAR_HEIGHT, true);
     this.sprite.setDamping(false);
     this.sprite.setDrag(0);
     this.sprite.setMaxVelocity(carDef.speed * 1.6);
     this.sprite.setBounce(0.35);
+
+    this.visual = scene.add.image(x, y, textureKey);
+    this.visual.setDepth(5);
+    this.visual.setRotation(angle);
 
     this.speed = 0;
     this.angle = angle;
@@ -123,7 +135,7 @@ export default class Car {
   update(deltaSeconds, externalSpeedMultiplier = 1) {
     this._updateHeight(deltaSeconds);
     this._updateGroundPhysics(deltaSeconds, externalSpeedMultiplier);
-    this._updateVisualHeightOffset();
+    this._updateVisual();
   }
 
   _updateHeight(deltaSeconds) {
@@ -170,22 +182,16 @@ export default class Car {
     const vx = Math.cos(this.angle) * this.speed;
     const vy = Math.sin(this.angle) * this.speed;
     this.sprite.setVelocity(vx, vy);
-    this.sprite.setRotation(this.angle);
   }
 
-  // Phaser resincroniza sprite.x/y a partir do corpo fisico (a fonte
-  // real da posicao) no inicio de cada frame, antes deste update()
-  // rodar — entao deslocar sprite.y aqui pra "subir" o desenho com a
-  // altura e seguro: no proximo frame a fisica resincroniza de novo
-  // antes de eu aplicar o deslocamento outra vez. A sombra fica na
-  // posicao real (chao), o carro desenhado sobe visualmente.
-  _updateVisualHeightOffset() {
+  _updateVisual() {
     this.shadow.setPosition(this.sprite.x, this.sprite.y);
     const shadowScale = clamp(1 - this.z / 260, SHADOW_MIN_SCALE, 1);
     this.shadow.setScale(shadowScale);
     this.shadow.setAlpha(SHADOW_MAX_ALPHA * shadowScale);
 
-    this.sprite.y -= this.z * HEIGHT_SCALE;
+    this.visual.setPosition(this.sprite.x, this.sprite.y - this.z * HEIGHT_SCALE);
+    this.visual.setRotation(this.angle);
   }
 
   getSpeedKmh() {
@@ -195,5 +201,6 @@ export default class Car {
   destroy() {
     this.sprite.destroy();
     this.shadow.destroy();
+    this.visual.destroy();
   }
 }
