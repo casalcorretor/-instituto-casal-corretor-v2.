@@ -16,14 +16,14 @@ const BOOST_THRUST = 700; // aceleracao extra por segundo enquanto o turbo esta 
 const BOOST_SPEED_MULTIPLIER = 1.35; // teto de velocidade sobe enquanto usa turbo
 const BOOST_MIN_TO_START = 4; // precisa desse tanto na barra pra comecar a usar
 
-const PARTICLE_TEXTURE_KEY = 'car_boost_particle';
+export const PARTICLE_TEXTURE_KEY = 'car_boost_particle';
 const AURA_TEXTURE_KEY = 'car_aura_particle';
 const AURA_ORBIT_RADIUS = 26; // raio em que as particulas do efeito exclusivo orbitam o carro
 
 // Desenha, uma unica vez, a textura de um carro (visto de cima) e a
 // registra na textura manager da cena. Nunca chamado por frame — gera
 // a imagem uma vez e reaproveita (essencial pra performance mobile).
-export function generateCarTexture(scene, textureKey, bodyColor, accentColor) {
+export function generateCarTexture(scene, textureKey, bodyColor, accentColor, wheelColor = 0x141414) {
   if (scene.textures.exists(textureKey)) return;
 
   const g = scene.make.graphics({ x: 0, y: 0 }, false);
@@ -33,6 +33,13 @@ export function generateCarTexture(scene, textureKey, bodyColor, accentColor) {
   // carroceria
   g.fillStyle(bodyColor, 1);
   g.fillRoundedRect(0, 0, w, h, 6);
+
+  // rodas (vista de cima, faixas nas bordas de cima/baixo)
+  g.fillStyle(wheelColor, 1);
+  g.fillRect(w * 0.22, 0, w * 0.14, 3);
+  g.fillRect(w * 0.22, h - 3, w * 0.14, 3);
+  g.fillRect(w * 0.62, 0, w * 0.14, 3);
+  g.fillRect(w * 0.62, h - 3, w * 0.14, 3);
 
   // cabine
   g.fillStyle(accentColor, 1);
@@ -110,17 +117,29 @@ function generateAuraParticleTexture(scene) {
 // fisica, que so copia a posicao do corpo fisico e recebe o
 // deslocamento de altura pra desenho.
 export default class Car {
-  constructor(scene, { x, y, angle = 0, carDef, textureKey }) {
+  // customization (opcional): { paintColor, wheelColor, trailColor,
+  // turboColor } — cores ja resolvidas (nao ids), preparadas pelo
+  // chamador a partir de CustomizationData.js. Sem customization,
+  // usa as cores originais do carro. So o carro do jogador recebe
+  // personalizacao por enquanto; bots usam sempre a aparencia padrao.
+  constructor(scene, { x, y, angle = 0, carDef, textureKey, customization = null }) {
     this.scene = scene;
     this.def = carDef;
+    this.customization = customization;
 
-    generateCarTexture(scene, textureKey, carDef.bodyColor, carDef.accentColor);
+    const paintColor = customization?.paintColor ?? carDef.bodyColor;
+    const wheelColor = customization?.wheelColor ?? 0x141414;
+    const effectiveTextureKey = customization
+      ? `${textureKey}_p${paintColor.toString(16)}_w${wheelColor.toString(16)}`
+      : textureKey;
+
+    generateCarTexture(scene, effectiveTextureKey, paintColor, carDef.accentColor, wheelColor);
     const shadowKey = generateShadowTexture(scene);
     generateBoostParticleTexture(scene);
 
     this.shadow = scene.add.image(x, y, shadowKey).setDepth(4).setAlpha(SHADOW_MAX_ALPHA);
 
-    this.sprite = scene.physics.add.image(x, y, textureKey);
+    this.sprite = scene.physics.add.image(x, y, effectiveTextureKey);
     this.sprite.setVisible(false);
     this.sprite.body.setSize(CAR_WIDTH, CAR_HEIGHT, true);
     this.sprite.setDamping(false);
@@ -128,20 +147,40 @@ export default class Car {
     this.sprite.setMaxVelocity(carDef.speed * 1.6 * BOOST_SPEED_MULTIPLIER);
     this.sprite.setBounce(0.35);
 
-    this.visual = scene.add.image(x, y, textureKey);
+    this.visual = scene.add.image(x, y, effectiveTextureKey);
     this.visual.setDepth(5);
     this.visual.setRotation(angle);
 
+    const turboTint = customization?.turboColor
+      ? [customization.turboColor, 0xffffff]
+      : [carDef.bodyColor, 0xffffff, 0xffc93c];
     this.boostEmitter = scene.add.particles(0, 0, PARTICLE_TEXTURE_KEY, {
       speed: { min: 30, max: 90 },
       angle: { min: 0, max: 360 },
       scale: { start: 1, end: 0 },
       alpha: { start: 0.9, end: 0 },
       lifespan: 260,
-      tint: [carDef.bodyColor, 0xffffff, 0xffc93c],
+      tint: turboTint,
       emitting: false
     });
     this.boostEmitter.setDepth(4);
+
+    // Rastro continuo enquanto anda no chao (independente do turbo) —
+    // so existe se o jogador escolheu uma cor de rastro na garagem.
+    this.trailEmitter = null;
+    if (customization?.trailColor) {
+      this.trailEmitter = scene.add.particles(0, 0, PARTICLE_TEXTURE_KEY, {
+        speed: { min: 5, max: 20 },
+        angle: { min: 0, max: 360 },
+        scale: { start: 0.5, end: 0 },
+        alpha: { start: 0.5, end: 0 },
+        lifespan: 400,
+        frequency: 60,
+        tint: customization.trailColor,
+        emitting: false
+      });
+      this.trailEmitter.setDepth(3);
+    }
 
     // Efeito visual exclusivo pra carros lendarios/misticos: um brilho
     // orbitando o carro o tempo todo (nao so ao usar turbo), pra
@@ -306,6 +345,15 @@ export default class Car {
     if (this.auraEmitter) {
       this.auraEmitter.setPosition(this.sprite.x, visualY);
     }
+
+    if (this.trailEmitter) {
+      this.trailEmitter.setPosition(this.sprite.x, visualY);
+      if (this.grounded && Math.abs(this.speed) > 40) {
+        this.trailEmitter.start();
+      } else {
+        this.trailEmitter.stop();
+      }
+    }
   }
 
   getSpeedKmh() {
@@ -326,5 +374,6 @@ export default class Car {
     this.visual.destroy();
     this.boostEmitter.destroy();
     if (this.auraEmitter) this.auraEmitter.destroy();
+    if (this.trailEmitter) this.trailEmitter.destroy();
   }
 }

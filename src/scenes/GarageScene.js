@@ -3,6 +3,7 @@ import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfi
 import { CARS } from '../data/CarsData.js';
 import { generateCarTexture } from '../entities/Car.js';
 import { getRarity, rarityColorHex } from '../data/RarityData.js';
+import { PAINT_OPTIONS, TRAIL_OPTIONS } from '../data/CustomizationData.js';
 import PlayerProfile from '../systems/PlayerProfile.js';
 import { enableVerticalScroll } from '../ui/ScrollableList.js';
 
@@ -10,7 +11,7 @@ const CARD_WIDTH = 150;
 const CARD_HEIGHT = 190;
 const CARD_GAP = 18;
 const CARDS_PER_ROW = 5;
-const GRID_START_Y = 175;
+const GRID_START_Y = 245;
 const BOTTOM_PADDING = 50;
 
 // Tela de garagem: mostra todos os carros do catalogo (so 1 por
@@ -60,12 +61,72 @@ export default class GarageScene extends Phaser.Scene {
       .setDepth(10);
     backButton.on('pointerdown', () => this.scene.start(SCENE_KEYS.MENU));
 
+    this._createCustomizationPanel();
     this._buildCarList();
     this._refreshStatus();
 
     const rows = Math.ceil(Object.keys(CARS).length / CARDS_PER_ROW);
     const contentHeight = GRID_START_Y + rows * (CARD_HEIGHT + CARD_GAP) - CARD_GAP + BOTTOM_PADDING;
     enableVerticalScroll(this, { contentHeight, viewportHeight: GAME_HEIGHT });
+  }
+
+  // Personalizacao (Etapa 15): pintura e rastro do carro equipado.
+  // Rodas/efeito de turbo/efeito de gol ja funcionam por baixo (via
+  // PlayerProfile) mas ainda sem um seletor visual proprio — podem
+  // ganhar linhas iguais a estas depois, sem mudar o resto do sistema.
+  _createCustomizationPanel() {
+    this.add
+      .text(GAME_WIDTH / 2, 84, 'PERSONALIZAR (carro equipado)', {
+        fontFamily: 'Arial',
+        fontSize: '12px',
+        color: '#8fb3c9'
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(10);
+
+    this.paintSwatches = this._createSwatchRow(PAINT_OPTIONS, 106, (id) => {
+      PlayerProfile.setPaint(id);
+      this._refreshCustomizationPanel();
+    });
+
+    this.trailSwatches = this._createSwatchRow(TRAIL_OPTIONS, 130, (id) => {
+      PlayerProfile.setTrail(id);
+      this._refreshCustomizationPanel();
+    });
+
+    this._refreshCustomizationPanel();
+  }
+
+  _createSwatchRow(options, y, onSelect) {
+    const spacing = 30;
+    const startX = GAME_WIDTH / 2 - ((options.length - 1) * spacing) / 2;
+
+    return options.map((opt, i) => {
+      const x = startX + i * spacing;
+      const color = opt.color ?? 0x333344;
+      const circle = this.add
+        .circle(x, y, 9, color)
+        .setStrokeStyle(2, COLORS.panelBorder, 1)
+        .setScrollFactor(0)
+        .setDepth(10)
+        .setInteractive({ useHandCursor: true });
+      circle.optionId = opt.id;
+      circle.on('pointerdown', () => onSelect(opt.id));
+      return circle;
+    });
+  }
+
+  _refreshCustomizationPanel() {
+    const c = PlayerProfile.getCustomization();
+    this.paintSwatches.forEach((sw) => {
+      const active = sw.optionId === c.paintId;
+      sw.setStrokeStyle(active ? 3 : 2, active ? 0xffffff : COLORS.panelBorder, 1);
+    });
+    this.trailSwatches.forEach((sw) => {
+      const active = sw.optionId === c.trailId;
+      sw.setStrokeStyle(active ? 3 : 2, active ? 0xffffff : COLORS.panelBorder, 1);
+    });
   }
 
   _buildCarList() {

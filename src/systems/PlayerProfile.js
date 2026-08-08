@@ -11,7 +11,17 @@ const state = {
   level: 1,
   xp: 0,
   unlockedCarIds: [DEFAULT_CAR_ID],
-  equippedCarId: DEFAULT_CAR_ID
+  equippedCarId: DEFAULT_CAR_ID,
+  customization: {
+    paintId: 'default',
+    wheelId: 'default',
+    trailId: 'none',
+    turboEffectId: 'default',
+    goalEffectId: 'default',
+    // reservados pra quando adesivos/acessorios ganharem efeito visual
+    stickerId: 'none',
+    accessoryId: 'none'
+  }
 };
 
 // Perfil do jogador (singleton do modulo, um unico objeto compartilhado
@@ -64,6 +74,30 @@ const PlayerProfile = {
     if (!this.isCarUnlocked(carId)) return false;
     state.equippedCarId = carId;
     return true;
+  },
+
+  getCustomization() {
+    return { ...state.customization };
+  },
+
+  setPaint(id) {
+    state.customization.paintId = id;
+  },
+
+  setWheel(id) {
+    state.customization.wheelId = id;
+  },
+
+  setTrail(id) {
+    state.customization.trailId = id;
+  },
+
+  setTurboEffect(id) {
+    state.customization.turboEffectId = id;
+  },
+
+  setGoalEffect(id) {
+    state.customization.goalEffectId = id;
   },
 
   getLevel() {

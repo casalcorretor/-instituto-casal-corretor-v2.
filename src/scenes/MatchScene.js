@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfig.js';
 import Arena from '../entities/Arena.js';
-import Car from '../entities/Car.js';
+import Car, { PARTICLE_TEXTURE_KEY } from '../entities/Car.js';
 import Ball from '../entities/Ball.js';
 import TurboPad from '../entities/TurboPad.js';
 import TouchControls from '../ui/TouchControls.js';
@@ -10,6 +10,21 @@ import AIController from '../systems/AIController.js';
 import { ARENAS, DEFAULT_ARENA_ID, ARENA_WIDTH, ARENA_HEIGHT } from '../data/ArenasData.js';
 import { CARS, DEFAULT_CAR_ID } from '../data/CarsData.js';
 import PlayerProfile from '../systems/PlayerProfile.js';
+import { PAINT_OPTIONS, WHEEL_OPTIONS, TRAIL_OPTIONS, TURBO_EFFECT_OPTIONS, GOAL_EFFECT_OPTIONS, getOption } from '../data/CustomizationData.js';
+
+// Le as escolhas de personalizacao do jogador (Etapa 15) e resolve os
+// ids salvos em cores de verdade, prontas pro construtor do Car. Cor
+// "null" (opcao "Padrao"/"Nenhum") significa "nao personalizar essa
+// parte" — o Car usa a cor original do carro nesse caso.
+function resolvePlayerCustomization() {
+  const c = PlayerProfile.getCustomization();
+  return {
+    paintColor: getOption(PAINT_OPTIONS, c.paintId).color,
+    wheelColor: getOption(WHEEL_OPTIONS, c.wheelId).color,
+    trailColor: getOption(TRAIL_OPTIONS, c.trailId).color,
+    turboColor: getOption(TURBO_EFFECT_OPTIONS, c.turboEffectId).color
+  };
+}
 
 const BASE_HIT_IMPULSE = 420;
 const VERTICAL_HIT_BASE = 380;
@@ -68,7 +83,8 @@ export default class MatchScene extends Phaser.Scene {
       y: ARENA_HEIGHT / 2,
       angle: 0,
       carDef,
-      textureKey: `car_${carDef.id}`
+      textureKey: `car_${carDef.id}`,
+      customization: resolvePlayerCustomization()
     });
 
     this.physics.add.collider(this.playerCar.sprite, this.arena.walls);
@@ -157,12 +173,35 @@ export default class MatchScene extends Phaser.Scene {
     const label = scoringSide === 'blue' ? 'GOL AZUL!' : 'GOL VERMELHO!';
     const color = scoringSide === 'blue' ? '#2fa8ff' : '#ff5a4d';
     this.goalText.setText(label).setColor(color).setAlpha(1);
+    this._spawnGoalEffect(scoringSide);
 
     this.time.delayedCall(GOAL_CELEBRATION_MS, () => {
       this.goalText.setAlpha(0);
       this.ball.resetTo(ARENA_WIDTH / 2, ARENA_HEIGHT / 2);
       this.celebrating = false;
     });
+  }
+
+  // Explosao de particulas no gol. O time azul (jogador) usa a cor de
+  // efeito de gol escolhida na garagem (Etapa 15); o vermelho (bot) usa
+  // uma cor fixa, ja que bots nao tem personalizacao.
+  _spawnGoalEffect(scoringSide) {
+    const effectColor =
+      scoringSide === 'blue'
+        ? getOption(GOAL_EFFECT_OPTIONS, PlayerProfile.getCustomization().goalEffectId).color
+        : 0xff5a4d;
+
+    const emitter = this.add.particles(this.ball.x, this.ball.y, PARTICLE_TEXTURE_KEY, {
+      speed: { min: 120, max: 260 },
+      angle: { min: 0, max: 360 },
+      scale: { start: 1.4, end: 0 },
+      alpha: { start: 1, end: 0 },
+      lifespan: 500,
+      tint: effectColor
+    });
+    emitter.explode(24);
+    this.uiCamera.ignore(emitter);
+    this.time.delayedCall(600, () => emitter.destroy());
   }
 
   _createTurboPads() {
