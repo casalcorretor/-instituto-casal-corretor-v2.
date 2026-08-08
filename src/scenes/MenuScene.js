@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfig.js';
 
-// Placeholder da Etapa 1: prova que o pipeline Boot -> Preload -> Menu
-// funciona de ponta a ponta. O menu real (JOGAR/GARAGEM/LOJA/ARENAS/
-// CONFIGURACOES) e construido na Etapa 17.
+// Placeholder das primeiras etapas: prova que o pipeline Boot -> Preload
+// -> Menu funciona, e por enquanto oferece um botao de teste pra entrar
+// na arena. O menu real (JOGAR/GARAGEM/LOJA/ARENAS/CONFIGURACOES) e
+// construido na Etapa 17, substituindo este botao de teste.
 export default class MenuScene extends Phaser.Scene {
   constructor() {
     super(SCENE_KEYS.MENU);
@@ -13,7 +14,7 @@ export default class MenuScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(COLORS.background);
 
     this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 40, 'CAR SOCCER', {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 60, 'CAR SOCCER', {
         fontFamily: 'Arial Black, Arial',
         fontSize: '64px',
         color: '#21e6c1'
@@ -21,11 +22,24 @@ export default class MenuScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 30, 'Etapa 1 concluida: projeto e arquitetura no ar', {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 10, 'Etapa 2: arena', {
         fontFamily: 'Arial',
         fontSize: '16px',
         color: '#8fb3c9'
       })
       .setOrigin(0.5);
+
+    const testButton = this.add
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 50, '[ VER ARENA DE TESTE ]', {
+        fontFamily: 'Arial',
+        fontSize: '20px',
+        color: '#ffc93c'
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+
+    testButton.on('pointerdown', () => {
+      this.scene.start(SCENE_KEYS.MATCH);
+    });
   }
 }

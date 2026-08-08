@@ -3,6 +3,7 @@ import { GAME_WIDTH, GAME_HEIGHT, COLORS } from './config/GameConfig.js';
 import BootScene from './scenes/BootScene.js';
 import PreloadScene from './scenes/PreloadScene.js';
 import MenuScene from './scenes/MenuScene.js';
+import MatchScene from './scenes/MatchScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -25,7 +26,7 @@ const config = {
   input: {
     activePointers: 4
   },
-  scene: [BootScene, PreloadScene, MenuScene]
+  scene: [BootScene, PreloadScene, MenuScene, MatchScene]
 };
 
 const game = new Phaser.Game(config);
