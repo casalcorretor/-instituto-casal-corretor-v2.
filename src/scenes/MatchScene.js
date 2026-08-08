@@ -6,6 +6,7 @@ import Ball from '../entities/Ball.js';
 import TurboPad from '../entities/TurboPad.js';
 import TouchControls from '../ui/TouchControls.js';
 import MatchManager from '../systems/MatchManager.js';
+import AIController from '../systems/AIController.js';
 import { ARENAS, DEFAULT_ARENA_ID, ARENA_WIDTH, ARENA_HEIGHT } from '../data/ArenasData.js';
 import { CARS, DEFAULT_CAR_ID } from '../data/CarsData.js';
 
@@ -43,6 +44,7 @@ export default class MatchScene extends Phaser.Scene {
 
     this._createPlayerCar();
     this._createBall();
+    this._createBotCar();
     this._createGoalSensors();
     this._createTurboPads();
     this._createKeyboardInput();
@@ -79,6 +81,38 @@ export default class MatchScene extends Phaser.Scene {
     this.physics.add.collider(this.playerCar.sprite, this.ball.sprite, () =>
       this._onCarHitBall(this.playerCar, this.ball)
     );
+  }
+
+  // Carro adversario (time vermelho) controlado por IA. Defende o gol
+  // direito (x = ARENA_WIDTH) e ataca o gol esquerdo (x = 0) — o
+  // inverso do jogador. Usa a mesma classe Car e a mesma interface
+  // setInput() do jogador; o unico diferencial e quem gera o input.
+  _createBotCar() {
+    const baseDef = CARS[this.carId] || CARS[DEFAULT_CAR_ID];
+    const botDef = { ...baseDef, bodyColor: COLORS.secondary, accentColor: 0x2a0a12 };
+
+    this.botCar = new Car(this, {
+      x: ARENA_WIDTH / 2 + 200,
+      y: ARENA_HEIGHT / 2,
+      angle: Math.PI,
+      carDef: botDef,
+      textureKey: 'car_bot_red'
+    });
+
+    this.physics.add.collider(this.botCar.sprite, this.arena.walls);
+    this.physics.add.collider(this.botCar.sprite, this.playerCar.sprite);
+    this.physics.add.collider(this.botCar.sprite, this.ball.sprite, () =>
+      this._onCarHitBall(this.botCar, this.ball)
+    );
+    this.worldObjects.push(this.botCar.shadow, this.botCar.visual);
+
+    this.aiController = new AIController(this.botCar, {
+      ball: this.ball,
+      ownGoalX: ARENA_WIDTH,
+      opponentGoalX: 0,
+      arenaHeight: ARENA_HEIGHT,
+      difficulty: 'normal'
+    });
   }
 
   // Colisao carro-bola: alem da resposta fisica automatica do Arcade
@@ -145,6 +179,7 @@ export default class MatchScene extends Phaser.Scene {
     this.turboPads.forEach((pad) => {
       this.worldObjects.push(pad.visual);
       this.physics.add.overlap(this.playerCar.sprite, pad.zone, () => pad.tryCollect(this.playerCar));
+      this.physics.add.overlap(this.botCar.sprite, pad.zone, () => pad.tryCollect(this.botCar));
     });
   }
 
@@ -265,10 +300,13 @@ export default class MatchScene extends Phaser.Scene {
 
     if (!this.matchManager.matchOver) {
       this.playerCar.setInput(input);
+      this.aiController.update(deltaSeconds);
     } else {
       this.playerCar.setInput({ throttle: 0, brake: 0, steer: 0 });
+      this.botCar.setInput({ throttle: 0, brake: 0, steer: 0 });
     }
     this.playerCar.update(deltaSeconds);
+    this.botCar.update(deltaSeconds, this.aiController.settings.speedMultiplier);
     this.ball.update(deltaSeconds);
     this.matchManager.update(deltaSeconds);
 
@@ -283,9 +321,10 @@ export default class MatchScene extends Phaser.Scene {
 
     this.debugText.setText(
       [
-        'Etapa 7: turbo (SHIFT usa turbo, WASD/setas, ESPACO pula, ESC volta ao menu)',
+        'Etapa 8: bot com IA (SHIFT turbo, WASD/setas, ESPACO pula, ESC menu)',
         `carro: ${this.playerCar.getSpeedKmh().toFixed(0)} km/h | z=${this.playerCar.z.toFixed(0)}`,
-        `turbo: ${(boostFraction * 100).toFixed(0)}% | usando: ${this.playerCar.boosting ? 'sim' : 'nao'}`
+        `turbo: ${(boostFraction * 100).toFixed(0)}% | usando: ${this.playerCar.boosting ? 'sim' : 'nao'}`,
+        `bot: estado=${this.aiController.state} | ${this.botCar.getSpeedKmh().toFixed(0)} km/h`
       ].join('\n')
     );
   }
