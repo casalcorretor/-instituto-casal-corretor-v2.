@@ -93,6 +93,7 @@ export default class RaceScene extends Phaser.Scene {
     this._createUiCamera();
     this._createMinimap();
     this._createAudio();
+    this._createPerFrameBuffers();
 
     this.cameras.main.setZoom(1.4);
     this.cameras.main.startFollow(this.playerCar.sprite, true, 0.08, 0.08);
@@ -217,6 +218,26 @@ export default class RaceScene extends Phaser.Scene {
     });
   }
 
+  // Buffers reaproveitados frame a frame (mutados no lugar em update())
+  // em vez de criar arrays/objetos novos 60x por segundo — a IA precisa
+  // da lista de outros carros e o minimapa precisa das posicoes, mas
+  // nenhum dos dois precisa de objetos NOVOS a cada quadro, so dos
+  // valores atualizados.
+  _createPerFrameBuffers() {
+    this._playerAvoidanceProxy = { x: 0, y: 0 };
+    this._avoidanceList = [...this.aiCars, this._playerAvoidanceProxy];
+
+    this._minimapRacers = [
+      { x: 0, y: 0, color: 0x00e5ff, isPlayer: true },
+      ...this.aiCars.map((_ai, index) => ({
+        x: 0,
+        y: 0,
+        color: AI_OPPONENTS[index].bodyColor,
+        isPlayer: false
+      }))
+    ];
+  }
+
   _onCarCollision() {
     const now = this.time.now;
     if (now - this.lastCollisionSfxAt < COLLISION_SFX_COOLDOWN) return;
@@ -266,8 +287,9 @@ export default class RaceScene extends Phaser.Scene {
       !playerRacer.finished
     );
 
-    const avoidanceList = [...this.aiCars, { x: this.playerCar.x, y: this.playerCar.y }];
-    this.aiCars.forEach((ai) => ai.update(deltaSeconds, avoidanceList));
+    this._playerAvoidanceProxy.x = this.playerCar.x;
+    this._playerAvoidanceProxy.y = this.playerCar.y;
+    this.aiCars.forEach((ai) => ai.update(deltaSeconds, this._avoidanceList));
 
     this.raceManager.update(deltaSeconds);
 
@@ -285,10 +307,13 @@ export default class RaceScene extends Phaser.Scene {
       formatTime: (s) => this.raceManager.formatTime(s)
     });
 
-    this.minimap.update([
-      { x: this.playerCar.x, y: this.playerCar.y, color: 0x00e5ff, isPlayer: true },
-      ...this.aiCars.map((ai, index) => ({ x: ai.x, y: ai.y, color: AI_OPPONENTS[index].bodyColor, isPlayer: false }))
-    ]);
+    this._minimapRacers[0].x = this.playerCar.x;
+    this._minimapRacers[0].y = this.playerCar.y;
+    this.aiCars.forEach((ai, index) => {
+      this._minimapRacers[index + 1].x = ai.x;
+      this._minimapRacers[index + 1].y = ai.y;
+    });
+    this.minimap.update(this._minimapRacers);
 
     if (playerRacer.finished && this.statusText.text === '') {
       this.statusText.setText(

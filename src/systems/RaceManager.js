@@ -87,10 +87,13 @@ export default class RaceManager {
   }
 
   _updatePositions() {
-    const sorted = [...this.racers].sort((a, b) => b.raceDistance - a.raceDistance);
-    sorted.forEach((racer, index) => {
-      racer.position = index + 1;
-    });
+    // Ordena o array em si (nada depende da ordem original de insercao)
+    // em vez de copiar pra um array novo a cada frame — evita alocacao
+    // desnecessaria 60x por segundo.
+    this.racers.sort((a, b) => b.raceDistance - a.raceDistance);
+    for (let i = 0; i < this.racers.length; i++) {
+      this.racers[i].position = i + 1;
+    }
   }
 
   // Volta exibida ao jogador (1-indexado, nunca passa de totalLaps).
