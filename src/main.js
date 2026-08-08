@@ -13,6 +13,11 @@ import PlayerProfile from './systems/PlayerProfile.js';
 import { CARS } from './data/CarsData.js';
 import { unlockAudio, setVolumes } from './systems/AudioManager.js';
 
+// Carrega o progresso salvo (Etapa 19), antes de qualquer cena existir
+// — assim menu/garagem/loja ja mostram os dados certos desde o
+// primeiro frame, sem "piscar" o estado padrao antes de carregar.
+PlayerProfile.load();
+
 const config = {
   type: Phaser.AUTO,
   parent: 'app',

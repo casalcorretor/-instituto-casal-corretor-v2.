@@ -41,6 +41,7 @@ export default class SettingsScene extends Phaser.Scene {
       (v) => PlayerProfile.setSfxVolume(v)
     );
     this._createDifficultyRow(280);
+    this._createResetRow(360);
 
     const backButton = this.add
       .text(20, GAME_HEIGHT - 30, '[ VOLTAR ]', {
@@ -134,5 +135,41 @@ export default class SettingsScene extends Phaser.Scene {
       });
     };
     refresh();
+  }
+
+  // Apaga o progresso salvo (Etapa 19). Exige clicar duas vezes (a
+  // segunda dentro de 3s) pra confirmar, pra nao apagar tudo com um
+  // toque sem querer — nao ha sistema de dialogo de confirmacao no
+  // jogo ainda, entao esse "clique duplo" faz esse papel.
+  _createResetRow(y) {
+    const resetButton = this.add
+      .text(GAME_WIDTH / 2, y, '[ APAGAR PROGRESSO ]', {
+        fontFamily: 'Arial',
+        fontSize: '13px',
+        color: '#ff4d6d'
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+
+    let armed = false;
+    let armTimer = null;
+
+    resetButton.on('pointerdown', () => {
+      if (!armed) {
+        armed = true;
+        resetButton.setText('[ TEM CERTEZA? CLIQUE DE NOVO ]');
+        playSfx(this, 'click');
+        armTimer = this.time.delayedCall(3000, () => {
+          armed = false;
+          resetButton.setText('[ APAGAR PROGRESSO ]');
+        });
+        return;
+      }
+
+      if (armTimer) armTimer.remove();
+      PlayerProfile.resetSave();
+      playSfx(this, 'collision');
+      this.scene.restart();
+    });
   }
 }
