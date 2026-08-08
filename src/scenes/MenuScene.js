@@ -56,6 +56,19 @@ export default class MenuScene extends Phaser.Scene {
       this.scene.start(SCENE_KEYS.GARAGE);
     });
 
+    const shopButton = this.add
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 120, '[ LOJA ]', {
+        fontFamily: 'Arial',
+        fontSize: '18px',
+        color: '#8fb3c9'
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+
+    shopButton.on('pointerdown', () => {
+      this.scene.start(SCENE_KEYS.SHOP);
+    });
+
     // Exibicao provisoria de saldo, so pra confirmar visualmente que a
     // economia (Etapa 10) esta funcionando. O menu real com HUD de
     // moedas/nivel/carro equipado entra na Etapa 17.

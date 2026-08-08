@@ -6,6 +6,7 @@ import MenuScene from './scenes/MenuScene.js';
 import MatchScene from './scenes/MatchScene.js';
 import MatchResultScene from './scenes/MatchResultScene.js';
 import GarageScene from './scenes/GarageScene.js';
+import ShopScene from './scenes/ShopScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -28,7 +29,7 @@ const config = {
   input: {
     activePointers: 6
   },
-  scene: [BootScene, PreloadScene, MenuScene, MatchScene, MatchResultScene, GarageScene]
+  scene: [BootScene, PreloadScene, MenuScene, MatchScene, MatchResultScene, GarageScene, ShopScene]
 };
 
 const game = new Phaser.Game(config);
