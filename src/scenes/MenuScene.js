@@ -49,7 +49,11 @@ export default class MenuScene extends Phaser.Scene {
       .setOrigin(1, 0);
 
     const buttons = [
-      { label: 'JOGAR', color: 0x2bd576, onClick: () => this.scene.start(SCENE_KEYS.RACE) },
+      {
+        label: 'JOGAR',
+        color: 0x2bd576,
+        onClick: () => this.scene.start(SCENE_KEYS.RACE, { carId: profile.selectedCarId })
+      },
       { label: 'GARAGEM', color: 0x00e5ff, onClick: () => this._goToOrNotify(SCENE_KEYS.GARAGE, 'GARAGEM') },
       { label: 'PISTAS', color: 0xff9e2d, onClick: () => this._goToOrNotify(SCENE_KEYS.TRACK_SELECT, 'PISTAS') },
       {
