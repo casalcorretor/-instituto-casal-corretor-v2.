@@ -29,6 +29,7 @@ export default class MatchScene extends Phaser.Scene {
     this.carId = data?.carId || DEFAULT_CAR_ID;
     this.worldObjects = [];
     this.celebrating = false;
+    this._resultTriggered = false;
   }
 
   create() {
@@ -311,9 +312,20 @@ export default class MatchScene extends Phaser.Scene {
     this.matchManager.update(deltaSeconds);
 
     this.scoreText.setText(`AZUL ${this.matchManager.score.blue}  x  ${this.matchManager.score.red} VERMELHO`);
-    this.timeText.setText(
-      this.matchManager.matchOver ? 'TEMPO ESGOTADO' : this.matchManager.formatTime()
-    );
+    this.timeText.setText(this.matchManager.matchOver ? 'FIM DE JOGO' : this.matchManager.formatTime());
+
+    if (this.matchManager.matchOver && !this.celebrating && !this._resultTriggered) {
+      this._resultTriggered = true;
+      this.time.delayedCall(1200, () => {
+        this.scene.start(SCENE_KEYS.RESULT, {
+          score: { ...this.matchManager.score },
+          winner: this.matchManager.winner,
+          coinRewards: this.matchManager.getCoinRewards(),
+          arenaId: this.arenaId,
+          carId: this.carId
+        });
+      });
+    }
 
     const boostFraction = this.playerCar.getBoostFraction();
     this.boostBarFill.width = this._boostBarFullWidth * boostFraction;
