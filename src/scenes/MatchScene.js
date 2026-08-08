@@ -11,6 +11,9 @@ import { ARENAS, DEFAULT_ARENA_ID, ARENA_WIDTH, ARENA_HEIGHT } from '../data/Are
 import { CARS, DEFAULT_CAR_ID } from '../data/CarsData.js';
 import PlayerProfile from '../systems/PlayerProfile.js';
 import { PAINT_OPTIONS, WHEEL_OPTIONS, TRAIL_OPTIONS, TURBO_EFFECT_OPTIONS, GOAL_EFFECT_OPTIONS, getOption } from '../data/CustomizationData.js';
+import { playSfx, createMatchMusic, EngineSound } from '../systems/AudioManager.js';
+
+const COLLISION_SPEED_THRESHOLD = 60; // abaixo disso, nao toca som de colisao (evita spam parado encostado na bola)
 
 // Le as escolhas de personalizacao do jogador (Etapa 15) e resolve os
 // ids salvos em cores de verdade, prontas pro construtor do Car. Cor
@@ -73,6 +76,15 @@ export default class MatchScene extends Phaser.Scene {
 
     this.input.keyboard?.on('keydown-ESC', () => {
       this.scene.start(SCENE_KEYS.MENU);
+    });
+
+    this.matchMusic = createMatchMusic();
+    this.matchMusic.start();
+    this.engineSound = new EngineSound();
+
+    this.events.once('shutdown', () => {
+      this.matchMusic.stop();
+      this.engineSound.stop();
     });
   }
 
@@ -152,6 +164,8 @@ export default class MatchScene extends Phaser.Scene {
     ball.sprite.body.velocity.x += dirX * pushStrength * 0.016;
     ball.sprite.body.velocity.y += dirY * pushStrength * 0.016;
 
+    if (carSpeed > COLLISION_SPEED_THRESHOLD) playSfx(this, 'collision');
+
     if (!car.isGrounded && ball.canBeHitVerticallyBy(car.z)) {
       ball.applyVerticalHit(VERTICAL_HIT_BASE * car.def.impact);
     }
@@ -169,6 +183,7 @@ export default class MatchScene extends Phaser.Scene {
 
     this.celebrating = true;
     this.matchManager.registerGoal(scoringSide);
+    playSfx(this, 'goal');
 
     const label = scoringSide === 'blue' ? 'GOL AZUL!' : 'GOL VERMELHO!';
     const color = scoringSide === 'blue' ? '#2fa8ff' : '#ff5a4d';
@@ -367,6 +382,9 @@ export default class MatchScene extends Phaser.Scene {
         });
       });
     }
+
+    const speedRatio = Phaser.Math.Clamp(Math.abs(this.playerCar.speed) / this.playerCar.def.speed, 0, 1);
+    this.engineSound.update(speedRatio, !this.matchManager.matchOver);
 
     const boostFraction = this.playerCar.getBoostFraction();
     this.boostBarFill.width = this._boostBarFullWidth * boostFraction;

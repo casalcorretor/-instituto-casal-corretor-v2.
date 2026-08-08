@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfig.js';
 import { CARS } from '../data/CarsData.js';
 import PlayerProfile from '../systems/PlayerProfile.js';
+import { playSfx, createMenuMusic } from '../systems/AudioManager.js';
 
 const MENU_ITEMS = [
   { label: 'JOGAR', action: 'play', highlight: true },
@@ -54,6 +55,7 @@ export default class MenuScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
 
       button.on('pointerdown', () => {
+        playSfx(this, 'click');
         if (item.action === 'play') {
           this.scene.start(SCENE_KEYS.MATCH, { arenaId: PlayerProfile.getLastArenaId() });
         } else {
@@ -65,6 +67,10 @@ export default class MenuScene extends Phaser.Scene {
     });
 
     this._refreshStats();
+
+    this.menuMusic = createMenuMusic();
+    this.menuMusic.start();
+    this.events.once('shutdown', () => this.menuMusic.stop());
   }
 
   update() {

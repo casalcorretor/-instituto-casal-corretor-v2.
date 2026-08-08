@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfig.js';
 import { ARENAS } from '../data/ArenasData.js';
 import PlayerProfile from '../systems/PlayerProfile.js';
+import { playSfx } from '../systems/AudioManager.js';
 
 const CARD_WIDTH = 260;
 const CARD_HEIGHT = 170;
@@ -35,7 +36,10 @@ export default class ArenaSelectScene extends Phaser.Scene {
         color: '#ffc93c'
       })
       .setInteractive({ useHandCursor: true });
-    backButton.on('pointerdown', () => this.scene.start(SCENE_KEYS.MENU));
+    backButton.on('pointerdown', () => {
+      playSfx(this, 'click');
+      this.scene.start(SCENE_KEYS.MENU);
+    });
 
     const ids = Object.keys(ARENAS);
     const totalWidth = ids.length * CARD_WIDTH + (ids.length - 1) * CARD_GAP;
@@ -86,6 +90,7 @@ export default class ArenaSelectScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
 
     playLabel.on('pointerdown', () => {
+      playSfx(this, 'click');
       PlayerProfile.setLastArenaId(arenaId);
       this.scene.start(SCENE_KEYS.MATCH, { arenaId });
     });

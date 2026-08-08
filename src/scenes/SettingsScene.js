@@ -1,17 +1,17 @@
 import Phaser from 'phaser';
 import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfig.js';
 import PlayerProfile from '../systems/PlayerProfile.js';
+import { playSfx, setVolumes } from '../systems/AudioManager.js';
 
 const VOLUME_STEPS = [0, 0.25, 0.5, 0.75, 1];
 const DIFFICULTIES = ['easy', 'normal', 'hard'];
 const DIFFICULTY_LABELS = { easy: 'FACIL', normal: 'NORMAL', hard: 'DIFICIL' };
 
 // Tela de configuracoes: volume de musica/efeitos (guardados no
-// PlayerProfile, ainda sem efeito sonoro de verdade ate a Etapa 18
-// implementar o AudioManager de verdade — quando isso acontecer, ele
-// so precisa LER esses valores, sem mudar nada aqui) e dificuldade do
-// bot (ja consumida pelo AIController desde a Etapa 8, so faltava
-// expor a escolha pro jogador).
+// PlayerProfile e aplicados na hora via AudioManager.setVolumes — a
+// Etapa 18 implementou o audio de verdade) e dificuldade do bot (ja
+// consumida pelo AIController desde a Etapa 8, so faltava expor a
+// escolha pro jogador).
 export default class SettingsScene extends Phaser.Scene {
   constructor() {
     super(SCENE_KEYS.SETTINGS);
@@ -49,7 +49,10 @@ export default class SettingsScene extends Phaser.Scene {
         color: '#ffc93c'
       })
       .setInteractive({ useHandCursor: true });
-    backButton.on('pointerdown', () => this.scene.start(SCENE_KEYS.MENU));
+    backButton.on('pointerdown', () => {
+      playSfx(this, 'click');
+      this.scene.start(SCENE_KEYS.MENU);
+    });
   }
 
   _createVolumeRow(label, y, getValue, setValue) {
@@ -78,6 +81,8 @@ export default class SettingsScene extends Phaser.Scene {
       circle.stepValue = step;
       circle.on('pointerdown', () => {
         setValue(step);
+        setVolumes({ musicVolume: PlayerProfile.getMusicVolume(), sfxVolume: PlayerProfile.getSfxVolume() });
+        playSfx(this, 'click');
         refresh();
       });
       return circle;
@@ -116,6 +121,7 @@ export default class SettingsScene extends Phaser.Scene {
       text.diffValue = diff;
       text.on('pointerdown', () => {
         PlayerProfile.setBotDifficulty(diff);
+        playSfx(this, 'click');
         refresh();
       });
       return text;

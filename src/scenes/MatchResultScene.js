@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfig.js';
 import PlayerProfile from '../systems/PlayerProfile.js';
+import { playSfx } from '../systems/AudioManager.js';
 
 // Tela de fim de partida: mostra quem ganhou, o placar final e as
 // moedas ganhas (calculadas pela MatchManager em getCoinRewards()).
@@ -34,6 +35,7 @@ export default class MatchResultScene extends Phaser.Scene {
     const playerWon = this.winner === 'blue';
     const label = playerWon ? 'VITORIA!' : this.winner === 'red' ? 'DERROTA' : 'EMPATE';
     const color = playerWon ? '#21e6c1' : this.winner === 'red' ? '#ff4d6d' : '#ffc93c';
+    playSfx(this, playerWon ? 'victory' : 'defeat');
 
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 130, label, {
@@ -92,6 +94,7 @@ export default class MatchResultScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
 
     playAgainButton.on('pointerdown', () => {
+      playSfx(this, 'click');
       this.scene.start(SCENE_KEYS.MATCH, { arenaId: this.arenaId, carId: this.carId });
     });
 
@@ -105,6 +108,7 @@ export default class MatchResultScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
 
     menuButton.on('pointerdown', () => {
+      playSfx(this, 'click');
       this.scene.start(SCENE_KEYS.MENU);
     });
   }

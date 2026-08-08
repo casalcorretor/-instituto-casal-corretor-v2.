@@ -1,3 +1,5 @@
+import { playSfx } from '../systems/AudioManager.js';
+
 const PAD_RADIUS = 26;
 const RESPAWN_TIME = 5000; // ms ate o ponto reaparecer depois de usado
 const REFILL_AMOUNT = 60;
@@ -55,6 +57,7 @@ export default class TurboPad {
     car.refillBoost(REFILL_AMOUNT);
     this.visual.setVisible(false);
     this.zone.body.enable = false;
+    playSfx(this.scene, 'turboPad');
 
     this.scene.time.delayedCall(RESPAWN_TIME, () => {
       this.active = true;

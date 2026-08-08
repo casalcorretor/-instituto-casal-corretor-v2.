@@ -245,6 +245,7 @@ export default class Car {
     const v0 = Math.sqrt(2 * GRAVITY * this.def.jumpHeight);
     this.vz = v0;
     this.grounded = false;
+    playSfx(this.scene, 'jump');
   }
 
   // externalSpeedMultiplier permite ajustes de fora (ex.: IA).

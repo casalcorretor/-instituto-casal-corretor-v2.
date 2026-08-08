@@ -6,6 +6,7 @@ import { getRarity, rarityColorHex } from '../data/RarityData.js';
 import { PAINT_OPTIONS, TRAIL_OPTIONS } from '../data/CustomizationData.js';
 import PlayerProfile from '../systems/PlayerProfile.js';
 import { enableVerticalScroll } from '../ui/ScrollableList.js';
+import { playSfx } from '../systems/AudioManager.js';
 
 const CARD_WIDTH = 150;
 const CARD_HEIGHT = 190;
@@ -59,7 +60,10 @@ export default class GarageScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .setScrollFactor(0)
       .setDepth(10);
-    backButton.on('pointerdown', () => this.scene.start(SCENE_KEYS.MENU));
+    backButton.on('pointerdown', () => {
+      playSfx(this, 'click');
+      this.scene.start(SCENE_KEYS.MENU);
+    });
 
     this._createCustomizationPanel();
     this._buildCarList();
@@ -112,7 +116,10 @@ export default class GarageScene extends Phaser.Scene {
         .setDepth(10)
         .setInteractive({ useHandCursor: true });
       circle.optionId = opt.id;
-      circle.on('pointerdown', () => onSelect(opt.id));
+      circle.on('pointerdown', () => {
+        playSfx(this, 'click');
+        onSelect(opt.id);
+      });
       return circle;
     });
   }
@@ -199,6 +206,7 @@ export default class GarageScene extends Phaser.Scene {
     if (unlocked && !equipped) {
       actionText.setInteractive({ useHandCursor: true });
       actionText.on('pointerdown', () => {
+        playSfx(this, 'click');
         PlayerProfile.equipCar(carId);
         this._rebuildList();
       });

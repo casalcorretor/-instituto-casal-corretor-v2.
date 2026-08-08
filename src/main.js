@@ -11,6 +11,7 @@ import ArenaSelectScene from './scenes/ArenaSelectScene.js';
 import SettingsScene from './scenes/SettingsScene.js';
 import PlayerProfile from './systems/PlayerProfile.js';
 import { CARS } from './data/CarsData.js';
+import { unlockAudio, setVolumes } from './systems/AudioManager.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -62,3 +63,15 @@ if (import.meta.env.DEV) {
   // teste escrevia num PlayerProfile "fantasma" diferente do real).
   window.__CAR_SOCCER_DEBUG__ = { playerProfile: PlayerProfile, cars: CARS };
 }
+
+// Navegadores exigem um gesto do usuario antes de tocar audio; o
+// primeiro toque/clique/tecla na pagina destrava o AudioContext e
+// aplica os volumes salvos no perfil.
+function unlockAudioOnce() {
+  unlockAudio();
+  setVolumes({ musicVolume: PlayerProfile.getMusicVolume(), sfxVolume: PlayerProfile.getSfxVolume() });
+  window.removeEventListener('pointerdown', unlockAudioOnce);
+  window.removeEventListener('keydown', unlockAudioOnce);
+}
+window.addEventListener('pointerdown', unlockAudioOnce);
+window.addEventListener('keydown', unlockAudioOnce);

@@ -5,6 +5,7 @@ import { generateCarTexture } from '../entities/Car.js';
 import { getRarity, rarityColorHex } from '../data/RarityData.js';
 import PlayerProfile from '../systems/PlayerProfile.js';
 import { enableVerticalScroll } from '../ui/ScrollableList.js';
+import { playSfx } from '../systems/AudioManager.js';
 
 const CARD_WIDTH = 150;
 const CARD_HEIGHT = 190;
@@ -68,7 +69,10 @@ export default class ShopScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .setScrollFactor(0)
       .setDepth(10);
-    backButton.on('pointerdown', () => this.scene.start(SCENE_KEYS.MENU));
+    backButton.on('pointerdown', () => {
+      playSfx(this, 'click');
+      this.scene.start(SCENE_KEYS.MENU);
+    });
 
     this._buildCarList();
     this._refreshStatus();
@@ -157,18 +161,21 @@ export default class ShopScene extends Phaser.Scene {
 
     if (carDef.price === 0) {
       PlayerProfile.unlockCar(carId);
+      playSfx(this, 'goal');
       this._showMessage(`${carDef.name} liberado!`, '#2bd576');
       this._rebuildList();
       return;
     }
 
     if (!PlayerProfile.canAfford(carDef.price)) {
+      playSfx(this, 'collision');
       this._showMessage('moedas insuficientes', '#ff4d6d');
       return;
     }
 
     PlayerProfile.spendCoins(carDef.price);
     PlayerProfile.unlockCar(carId);
+    playSfx(this, 'goal');
     this._showMessage(`${carDef.name} comprado!`, '#2bd576');
     this._rebuildList();
   }
