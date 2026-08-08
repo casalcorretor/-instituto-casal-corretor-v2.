@@ -3,13 +3,14 @@ import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfi
 import Track from '../entities/Track.js';
 import Car from '../entities/Car.js';
 import AICar from '../entities/AICar.js';
+import { applyTrackTheme } from '../entities/TrackTheme.js';
 import TouchControls from '../ui/TouchControls.js';
 import RaceHud from '../ui/RaceHud.js';
 import Minimap, { MINIMAP_SIZE } from '../ui/Minimap.js';
 import RaceManager from '../systems/RaceManager.js';
 import CoinSystem from '../systems/CoinSystem.js';
-import { addCoins, recordRaceResult } from '../systems/PlayerProfile.js';
-import { TRACKS } from '../data/TracksData.js';
+import { addCoins, recordRaceResult, unlockNextTrackIfWon } from '../systems/PlayerProfile.js';
+import { TRACKS, DEFAULT_TRACK_ID } from '../data/TracksData.js';
 import { CARS, DEFAULT_CAR_ID } from '../data/CarsData.js';
 
 const TOTAL_LAPS = 3;
@@ -57,7 +58,7 @@ export default class RaceScene extends Phaser.Scene {
   }
 
   init(data) {
-    this.trackId = data?.trackId || 'test';
+    this.trackId = data?.trackId || DEFAULT_TRACK_ID;
     this.carId = data?.carId || DEFAULT_CAR_ID;
     this.worldObjects = [];
     this.playerCoins = 0;
@@ -74,6 +75,9 @@ export default class RaceScene extends Phaser.Scene {
     const bounds = this._computeTrackBounds(trackData.waypoints, trackData.roadWidth);
     this.cameras.main.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
     this.physics.world.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
+
+    const themeGraphics = applyTrackTheme(this, this.track, trackData.theme, bounds);
+    if (themeGraphics) this.worldObjects.push(themeGraphics);
 
     this._markStart();
     this._createPlayerCar();
@@ -255,6 +259,7 @@ export default class RaceScene extends Phaser.Scene {
     const totalEarned = this.playerCoins + positionBonus;
     addCoins(totalEarned);
     const isNewBest = recordRaceResult(this.trackId, playerRacer.finishTime);
+    const unlockedTrackId = unlockNextTrackIfWon(this.trackId, playerRacer.position);
 
     this.time.delayedCall(FINISH_TO_RESULT_DELAY, () => {
       this.scene.start(SCENE_KEYS.RESULT, {
@@ -267,6 +272,7 @@ export default class RaceScene extends Phaser.Scene {
         positionBonus,
         totalEarned,
         isNewBest,
+        unlockedTrackName: unlockedTrackId ? TRACKS[unlockedTrackId].name : null,
         formattedTime: this.raceManager.formatTime(playerRacer.finishTime)
       });
     });

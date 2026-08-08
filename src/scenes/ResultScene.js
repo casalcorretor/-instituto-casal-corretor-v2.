@@ -16,8 +16,16 @@ export default class ResultScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor(COLORS.background);
-    const { position, totalRacers, formattedTime, coinsCollected, positionBonus, totalEarned, isNewBest } =
-      this.result;
+    const {
+      position,
+      totalRacers,
+      formattedTime,
+      coinsCollected,
+      positionBonus,
+      totalEarned,
+      isNewBest,
+      unlockedTrackName
+    } = this.result;
 
     const isWin = position === 1;
 
@@ -67,6 +75,17 @@ export default class ResultScene extends Phaser.Scene {
           fontFamily: 'Arial Black, Arial',
           fontSize: '18px',
           color: '#2bd576'
+        })
+        .setOrigin(0.5);
+      y += 26;
+    }
+
+    if (unlockedTrackName) {
+      this.add
+        .text(GAME_WIDTH / 2, y + 10, `🔓 Pista desbloqueada: ${unlockedTrackName}`, {
+          fontFamily: 'Arial Black, Arial',
+          fontSize: '16px',
+          color: '#ffd400'
         })
         .setOrigin(0.5);
     }

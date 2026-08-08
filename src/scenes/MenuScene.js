@@ -31,7 +31,7 @@ export default class MenuScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    const bestTime = getBestTime('test');
+    const bestTime = getBestTime(profile.selectedTrackId);
     this.add
       .text(16, 16, `🪙 ${profile.coins}`, {
         fontFamily: 'Arial Black, Arial',
@@ -52,7 +52,8 @@ export default class MenuScene extends Phaser.Scene {
       {
         label: 'JOGAR',
         color: 0x2bd576,
-        onClick: () => this.scene.start(SCENE_KEYS.RACE, { carId: profile.selectedCarId })
+        onClick: () =>
+          this.scene.start(SCENE_KEYS.RACE, { carId: profile.selectedCarId, trackId: profile.selectedTrackId })
       },
       { label: 'GARAGEM', color: 0x00e5ff, onClick: () => this._goToOrNotify(SCENE_KEYS.GARAGE, 'GARAGEM') },
       { label: 'PISTAS', color: 0xff9e2d, onClick: () => this._goToOrNotify(SCENE_KEYS.TRACK_SELECT, 'PISTAS') },
