@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cores do tema do jogo (ver src/config/GameConfig.js COLORS),
+         repetidas aqui pra combinar o visual nativo do Android (splash,
+         status bar) com o jogo, em vez das cores azuis padrao do
+         template do Capacitor. -->
+    <color name="colorPrimary">#21E6C1</color>
+    <color name="colorPrimaryDark">#0A1420</color>
+    <color name="colorAccent">#FFC93C</color>
+    <color name="splashBackground">#0A1420</color>
+</resources>

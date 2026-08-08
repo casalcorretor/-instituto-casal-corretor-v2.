@@ -14,6 +14,10 @@ export default class TouchControls {
     this.gameObjects = [];
     this.buttons = {};
     this._circles = {};
+    // Buffer reaproveitado em getState() (chamado todo frame) — evita
+    // criar um objeto novo 60x por segundo so pra devolver o mesmo
+    // formato de sempre.
+    this._state = { throttle: 0, brake: 0, steer: 0, jump: false, boost: false };
 
     const steerY = height - 100;
     this._createButton('steerLeft', { x: 95, y: steerY, radius: 56, label: '◀' });
@@ -72,13 +76,12 @@ export default class TouchControls {
     const left = this.buttons.steerLeft.held;
     const right = this.buttons.steerRight.held;
 
-    return {
-      throttle: this.buttons.throttle.held ? 1 : 0,
-      brake: this.buttons.brake.held ? 1 : 0,
-      steer: (left ? -1 : 0) + (right ? 1 : 0),
-      jump: this.buttons.jump.held,
-      boost: this.buttons.boost.held
-    };
+    this._state.throttle = this.buttons.throttle.held ? 1 : 0;
+    this._state.brake = this.buttons.brake.held ? 1 : 0;
+    this._state.steer = (left ? -1 : 0) + (right ? 1 : 0);
+    this._state.jump = this.buttons.jump.held;
+    this._state.boost = this.buttons.boost.held;
+    return this._state;
   }
 
   destroy() {

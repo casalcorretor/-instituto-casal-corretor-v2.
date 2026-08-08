@@ -37,6 +37,9 @@ export default class AIController {
     this._retargetTimer = 0;
     this._jumpCooldown = 0;
     this._wantsBoost = false;
+    // Buffer reaproveitado em update() (chamado todo frame) — evita
+    // criar um objeto novo 60x por segundo so pra passar pro Car.
+    this._inputBuffer = { throttle: 0, brake: 0, steer: 0, jump: false, boost: false };
   }
 
   update(deltaSeconds) {
@@ -67,13 +70,13 @@ export default class AIController {
       this._jumpCooldown = 1.2;
     }
 
-    this.car.setInput({
-      throttle,
-      brake,
-      steer,
-      jump,
-      boost: this._wantsBoost && dist > 40
-    });
+    const input = this._inputBuffer;
+    input.throttle = throttle;
+    input.brake = brake;
+    input.steer = steer;
+    input.jump = jump;
+    input.boost = this._wantsBoost && dist > 40;
+    this.car.setInput(input);
   }
 
   _pickTarget() {

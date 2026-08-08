@@ -49,6 +49,8 @@ export default class MatchScene extends Phaser.Scene {
     this.worldObjects = [];
     this.celebrating = false;
     this._resultTriggered = false;
+    this._inputBuffer = { throttle: 0, brake: 0, steer: 0, jump: false, boost: false };
+    this._zeroInputBuffer = { throttle: 0, brake: 0, steer: 0, jump: false, boost: false };
   }
 
   create() {
@@ -277,14 +279,22 @@ export default class MatchScene extends Phaser.Scene {
       .setAlpha(0)
       .setDepth(101);
 
-    this.debugText = this.add
-      .text(16, 80, '', {
-        fontFamily: 'Arial',
-        fontSize: '14px',
-        color: '#ffffff',
-        backgroundColor: '#000000'
-      })
-      .setDepth(100);
+    // Texto de debug: so existe em modo dev. Custa um redesenho de
+    // canvas toda vez que muda (velocidade/altura mudam quase todo
+    // frame), entao nao faz sentido pagar esse custo numa build de
+    // producao (celular de verdade) so pra mostrar numero que ninguem
+    // ve. Etapa 20 (otimizacao) — antes disso, funcionava mas rodava
+    // sempre, mesmo em producao.
+    if (import.meta.env.DEV) {
+      this.debugText = this.add
+        .text(16, 80, '', {
+          fontFamily: 'Arial',
+          fontSize: '14px',
+          color: '#ffffff',
+          backgroundColor: '#000000'
+        })
+        .setDepth(100);
+    }
 
     this._createBoostBar();
 
@@ -292,12 +302,12 @@ export default class MatchScene extends Phaser.Scene {
       this.scoreText,
       this.timeText,
       this.goalText,
-      this.debugText,
       this.boostBarBg,
       this.boostBarFill,
       this.boostLabel,
       ...this.touchControls.gameObjects
     ];
+    if (this.debugText) uiObjects.push(this.debugText);
 
     this.uiCamera = this.cameras.add(0, 0, GAME_WIDTH, GAME_HEIGHT);
     this.uiCamera.setScroll(0, 0);
@@ -341,13 +351,14 @@ export default class MatchScene extends Phaser.Scene {
 
     const touch = this.touchControls.getState();
 
-    return {
-      throttle: up || touch.throttle ? 1 : 0,
-      brake: down || touch.brake ? 1 : 0,
-      steer: Phaser.Math.Clamp((left ? -1 : 0) + (right ? 1 : 0) + touch.steer, -1, 1),
-      jump: jumpKey || touch.jump,
-      boost: boostKey || touch.boost
-    };
+    // Buffer reaproveitado (nao cria objeto novo todo frame).
+    const input = this._inputBuffer;
+    input.throttle = up || touch.throttle ? 1 : 0;
+    input.brake = down || touch.brake ? 1 : 0;
+    input.steer = Phaser.Math.Clamp((left ? -1 : 0) + (right ? 1 : 0) + touch.steer, -1, 1);
+    input.jump = jumpKey || touch.jump;
+    input.boost = boostKey || touch.boost;
+    return input;
   }
 
   update(time, delta) {
@@ -358,16 +369,29 @@ export default class MatchScene extends Phaser.Scene {
       this.playerCar.setInput(input);
       this.aiController.update(deltaSeconds);
     } else {
-      this.playerCar.setInput({ throttle: 0, brake: 0, steer: 0 });
-      this.botCar.setInput({ throttle: 0, brake: 0, steer: 0 });
+      this.playerCar.setInput(this._zeroInputBuffer);
+      this.botCar.setInput(this._zeroInputBuffer);
     }
     this.playerCar.update(deltaSeconds);
     this.botCar.update(deltaSeconds, this.aiController.settings.speedMultiplier);
     this.ball.update(deltaSeconds);
     this.matchManager.update(deltaSeconds);
 
-    this.scoreText.setText(`AZUL ${this.matchManager.score.blue}  x  ${this.matchManager.score.red} VERMELHO`);
-    this.timeText.setText(this.matchManager.matchOver ? 'FIM DE JOGO' : this.matchManager.formatTime());
+    // So chama setText() quando o texto de verdade mudou — Phaser
+    // redesenha a textura do texto (operacao de canvas, bem mais cara
+    // que so trocar uma string) toda vez que setText() e chamado, e
+    // placar/tempo mudam bem menos que 60x por segundo.
+    const scoreLabel = `AZUL ${this.matchManager.score.blue}  x  ${this.matchManager.score.red} VERMELHO`;
+    if (scoreLabel !== this._lastScoreLabel) {
+      this.scoreText.setText(scoreLabel);
+      this._lastScoreLabel = scoreLabel;
+    }
+
+    const timeLabel = this.matchManager.matchOver ? 'FIM DE JOGO' : this.matchManager.formatTime();
+    if (timeLabel !== this._lastTimeLabel) {
+      this.timeText.setText(timeLabel);
+      this._lastTimeLabel = timeLabel;
+    }
 
     if (this.matchManager.matchOver && !this.celebrating && !this._resultTriggered) {
       this._resultTriggered = true;
@@ -390,13 +414,13 @@ export default class MatchScene extends Phaser.Scene {
     this.boostBarFill.width = this._boostBarFullWidth * boostFraction;
     this.boostBarFill.fillColor = boostFraction < 0.15 ? 0xff3b3b : 0xffc93c;
 
-    this.debugText.setText(
-      [
-        'Etapa 8: bot com IA (SHIFT turbo, WASD/setas, ESPACO pula, ESC menu)',
-        `carro: ${this.playerCar.getSpeedKmh().toFixed(0)} km/h | z=${this.playerCar.z.toFixed(0)}`,
-        `turbo: ${(boostFraction * 100).toFixed(0)}% | usando: ${this.playerCar.boosting ? 'sim' : 'nao'}`,
-        `bot: estado=${this.aiController.state} | ${this.botCar.getSpeedKmh().toFixed(0)} km/h`
-      ].join('\n')
-    );
+    if (this.debugText) {
+      this.debugText.setText(
+        `WASD/setas, SHIFT turbo, ESPACO pula, ESC menu\n` +
+          `carro: ${this.playerCar.getSpeedKmh().toFixed(0)} km/h | z=${this.playerCar.z.toFixed(0)}\n` +
+          `turbo: ${(boostFraction * 100).toFixed(0)}% | usando: ${this.playerCar.boosting ? 'sim' : 'nao'}\n` +
+          `bot: estado=${this.aiController.state} | ${this.botCar.getSpeedKmh().toFixed(0)} km/h`
+      );
+    }
   }
 }

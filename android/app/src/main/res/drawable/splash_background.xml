@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fundo solido da tela de abertura, na cor de fundo do jogo — evita
+     o flash branco/azul padrao do Capacitor antes do jogo carregar. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/splashBackground" />
+</shape>
