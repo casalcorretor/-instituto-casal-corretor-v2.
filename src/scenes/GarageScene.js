@@ -4,12 +4,14 @@ import { CARS } from '../data/CarsData.js';
 import { generateCarTexture } from '../entities/Car.js';
 import { getRarity, rarityColorHex } from '../data/RarityData.js';
 import PlayerProfile from '../systems/PlayerProfile.js';
+import { enableVerticalScroll } from '../ui/ScrollableList.js';
 
 const CARD_WIDTH = 150;
 const CARD_HEIGHT = 190;
 const CARD_GAP = 18;
 const CARDS_PER_ROW = 5;
-const GRID_START_Y = 130;
+const GRID_START_Y = 175;
+const BOTTOM_PADDING = 50;
 
 // Tela de garagem: mostra todos os carros do catalogo (so 1 por
 // enquanto — a Etapa 14 adiciona o catalogo completo com todas as
@@ -33,7 +35,9 @@ export default class GarageScene extends Phaser.Scene {
         fontSize: '32px',
         color: '#21e6c1'
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(10);
 
     this.statusText = this.add
       .text(GAME_WIDTH / 2, 62, '', {
@@ -41,7 +45,9 @@ export default class GarageScene extends Phaser.Scene {
         fontSize: '14px',
         color: '#8fb3c9'
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(10);
 
     const backButton = this.add
       .text(20, GAME_HEIGHT - 30, '[ VOLTAR ]', {
@@ -49,11 +55,17 @@ export default class GarageScene extends Phaser.Scene {
         fontSize: '18px',
         color: '#ffc93c'
       })
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true })
+      .setScrollFactor(0)
+      .setDepth(10);
     backButton.on('pointerdown', () => this.scene.start(SCENE_KEYS.MENU));
 
     this._buildCarList();
     this._refreshStatus();
+
+    const rows = Math.ceil(Object.keys(CARS).length / CARDS_PER_ROW);
+    const contentHeight = GRID_START_Y + rows * (CARD_HEIGHT + CARD_GAP) - CARD_GAP + BOTTOM_PADDING;
+    enableVerticalScroll(this, { contentHeight, viewportHeight: GAME_HEIGHT });
   }
 
   _buildCarList() {

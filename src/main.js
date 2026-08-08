@@ -7,6 +7,8 @@ import MatchScene from './scenes/MatchScene.js';
 import MatchResultScene from './scenes/MatchResultScene.js';
 import GarageScene from './scenes/GarageScene.js';
 import ShopScene from './scenes/ShopScene.js';
+import PlayerProfile from './systems/PlayerProfile.js';
+import { CARS } from './data/CarsData.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -36,4 +38,15 @@ const game = new Phaser.Game(config);
 
 if (import.meta.env.DEV) {
   window.__CAR_SOCCER_GAME__ = game;
+  // Expõe os mesmos objetos que o jogo usa internamente (nao copias
+  // via re-import) — testes automatizados devem mutar/ler estado por
+  // aqui, nunca via import() direto de um caminho de arquivo dentro de
+  // page.evaluate. O Vite as vezes versiona internamente um import com
+  // "?t=timestamp" apos um arquivo ser editado (HMR); um import()
+  // "cru" digitado a mao no teste bate na URL sem versao, criando uma
+  // SEGUNDA instancia do modulo (estado duplicado, dessincronizado do
+  // jogo de verdade) — foi exatamente isso que causou um falso "bug"
+  // na Etapa 14 (o carro parecia nao desbloquear na garagem porque o
+  // teste escrevia num PlayerProfile "fantasma" diferente do real).
+  window.__CAR_SOCCER_DEBUG__ = { playerProfile: PlayerProfile, cars: CARS };
 }
