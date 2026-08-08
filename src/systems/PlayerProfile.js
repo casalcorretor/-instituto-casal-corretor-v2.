@@ -1,0 +1,83 @@
+import { CARS, DEFAULT_CAR_ID } from '../data/CarsData.js';
+
+// Bonus diario configuravel (spec pede 500 a 2000). A logica de "so
+// pode resgatar uma vez por dia" depende de data salva em disco, que
+// so existe a partir da Etapa 19 (salvamento) — por enquanto so o
+// valor fica pronto aqui, sem UI ainda pra resgatar.
+export const DAILY_BONUS_RANGE = { min: 500, max: 2000 };
+
+const state = {
+  coins: 0,
+  level: 1,
+  xp: 0,
+  unlockedCarIds: [DEFAULT_CAR_ID],
+  equippedCarId: DEFAULT_CAR_ID
+};
+
+// Perfil do jogador (singleton do modulo, um unico objeto compartilhado
+// por todo o jogo). Guarda moedas, nivel/xp e carros — por enquanto so
+// em memoria (RAM), zera a cada recarregar a pagina. A Etapa 19
+// adiciona persistencia via localStorage por cima desse mesmo objeto,
+// sem precisar mudar quem ja le/escreve nele (mesmo padrao usado no
+// RUSH DRIVE).
+const PlayerProfile = {
+  getCoins() {
+    return state.coins;
+  },
+
+  addCoins(amount) {
+    if (amount <= 0) return state.coins;
+    state.coins += Math.floor(amount);
+    return state.coins;
+  },
+
+  // Retorna true se conseguiu gastar (saldo suficiente), false se nao.
+  spendCoins(amount) {
+    if (amount <= 0 || amount > state.coins) return false;
+    state.coins -= amount;
+    return true;
+  },
+
+  canAfford(amount) {
+    return amount <= state.coins;
+  },
+
+  isCarUnlocked(carId) {
+    return state.unlockedCarIds.includes(carId);
+  },
+
+  unlockCar(carId) {
+    if (!CARS[carId]) return false;
+    if (!state.unlockedCarIds.includes(carId)) state.unlockedCarIds.push(carId);
+    return true;
+  },
+
+  getUnlockedCarIds() {
+    return [...state.unlockedCarIds];
+  },
+
+  getEquippedCarId() {
+    return state.equippedCarId;
+  },
+
+  equipCar(carId) {
+    if (!this.isCarUnlocked(carId)) return false;
+    state.equippedCarId = carId;
+    return true;
+  },
+
+  getLevel() {
+    return state.level;
+  },
+
+  getXp() {
+    return state.xp;
+  },
+
+  // Exposto pra debug/testes; a UI real de nivel/XP entra na Etapa 16.
+  _debugState() {
+    return { ...state, unlockedCarIds: [...state.unlockedCarIds] };
+  }
+};
+
+export default PlayerProfile;

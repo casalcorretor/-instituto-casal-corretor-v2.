@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfig.js';
+import PlayerProfile from '../systems/PlayerProfile.js';
 
 // Placeholder das primeiras etapas: prova que o pipeline Boot -> Preload
 // -> Menu funciona, e por enquanto oferece um botao de teste pra entrar
@@ -41,5 +42,20 @@ export default class MenuScene extends Phaser.Scene {
     testButton.on('pointerdown', () => {
       this.scene.start(SCENE_KEYS.MATCH);
     });
+
+    // Exibicao provisoria de saldo, so pra confirmar visualmente que a
+    // economia (Etapa 10) esta funcionando. O menu real com HUD de
+    // moedas/nivel/carro equipado entra na Etapa 17.
+    this.coinsText = this.add
+      .text(GAME_WIDTH - 16, 16, `moedas: ${PlayerProfile.getCoins()}`, {
+        fontFamily: 'Arial',
+        fontSize: '16px',
+        color: '#ffc93c'
+      })
+      .setOrigin(1, 0);
+  }
+
+  update() {
+    this.coinsText.setText(`moedas: ${PlayerProfile.getCoins()}`);
   }
 }

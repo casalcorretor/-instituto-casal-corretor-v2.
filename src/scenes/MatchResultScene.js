@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfig.js';
+import PlayerProfile from '../systems/PlayerProfile.js';
 
 // Tela de fim de partida: mostra quem ganhou, o placar final e as
 // moedas ganhas (calculadas pela MatchManager em getCoinRewards()).
@@ -21,6 +22,11 @@ export default class MatchResultScene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor(COLORS.background);
+
+    // o jogador e sempre o time azul por enquanto (times/selecao entram
+    // quando 2v2/3v3 forem implementados). Credita a recompensa dessa
+    // partida no saldo total uma unica vez, ao criar a tela.
+    PlayerProfile.addCoins(this.coinRewards.blue);
 
     const playerWon = this.winner === 'blue';
     const label = playerWon ? 'VITORIA!' : this.winner === 'red' ? 'DERROTA' : 'EMPATE';
@@ -47,6 +53,14 @@ export default class MatchResultScene extends Phaser.Scene {
         fontFamily: 'Arial',
         fontSize: '20px',
         color: '#ffc93c'
+      })
+      .setOrigin(0.5);
+
+    this.add
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 15, `saldo total: ${PlayerProfile.getCoins()} moedas`, {
+        fontFamily: 'Arial',
+        fontSize: '14px',
+        color: '#8fb3c9'
       })
       .setOrigin(0.5);
 
