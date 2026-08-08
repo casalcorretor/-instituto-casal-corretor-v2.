@@ -1,4 +1,5 @@
 import { clamp } from '../utils/MathUtils.js';
+import { playSfx } from '../systems/AudioManager.js';
 
 const CAR_WIDTH = 38;
 const CAR_HEIGHT = 22;
@@ -7,6 +8,13 @@ const HEIGHT_SCALE = 0.62; // quanto a altura "z" desloca o desenho na tela
 const SHADOW_MAX_ALPHA = 0.45;
 const SHADOW_MIN_SCALE = 0.35;
 const AIR_STEER_FACTOR = 0.35; // controle aereo e mais lento que no chao
+
+const BOOST_DRAIN_TIME = 3; // segundos pra esvaziar a barra cheia em uso continuo
+const BOOST_THRUST = 700; // aceleracao extra por segundo enquanto o turbo esta ativo
+const BOOST_SPEED_MULTIPLIER = 1.35; // teto de velocidade sobe enquanto usa turbo
+const BOOST_MIN_TO_START = 4; // precisa desse tanto na barra pra comecar a usar
+
+const PARTICLE_TEXTURE_KEY = 'car_boost_particle';
 
 // Desenha, uma unica vez, a textura de um carro (visto de cima) e a
 // registra na textura manager da cena. Nunca chamado por frame — gera
@@ -55,11 +63,23 @@ function generateShadowTexture(scene) {
   return key;
 }
 
+function generateBoostParticleTexture(scene) {
+  if (scene.textures.exists(PARTICLE_TEXTURE_KEY)) return;
+
+  const g = scene.make.graphics({ x: 0, y: 0 }, false);
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(4, 4, 4);
+  g.generateTexture(PARTICLE_TEXTURE_KEY, 8, 8);
+  g.destroy();
+}
+
 // Carro com fisica arcade no plano do chao (acelerar/frear/virar) mais
 // um eixo Z simulado (altura) pra pulo e disputa de bola no ar — sem
 // precisar de um motor de fisica 3D. Enquanto no ar, o acelerador e o
 // freio nao fazem nada (rodas nao tocam o chao), mas ainda da pra
-// virar (controle aereo basico), mais lento que no chao.
+// virar (controle aereo basico), mais lento que no chao. O turbo
+// funciona tanto no chao quanto no ar (empurra pra frente na direcao
+// que o carro esta olhando), o que permite "voar" ate a bola.
 //
 // O corpo fisico (this.sprite) fica sempre na posicao real de chao e
 // NUNCA e deslocado visualmente — testei deslocar sprite.y direto pra
@@ -76,6 +96,7 @@ export default class Car {
 
     generateCarTexture(scene, textureKey, carDef.bodyColor, carDef.accentColor);
     const shadowKey = generateShadowTexture(scene);
+    generateBoostParticleTexture(scene);
 
     this.shadow = scene.add.image(x, y, shadowKey).setDepth(4).setAlpha(SHADOW_MAX_ALPHA);
 
@@ -84,18 +105,33 @@ export default class Car {
     this.sprite.body.setSize(CAR_WIDTH, CAR_HEIGHT, true);
     this.sprite.setDamping(false);
     this.sprite.setDrag(0);
-    this.sprite.setMaxVelocity(carDef.speed * 1.6);
+    this.sprite.setMaxVelocity(carDef.speed * 1.6 * BOOST_SPEED_MULTIPLIER);
     this.sprite.setBounce(0.35);
 
     this.visual = scene.add.image(x, y, textureKey);
     this.visual.setDepth(5);
     this.visual.setRotation(angle);
 
+    this.boostEmitter = scene.add.particles(0, 0, PARTICLE_TEXTURE_KEY, {
+      speed: { min: 30, max: 90 },
+      angle: { min: 0, max: 360 },
+      scale: { start: 1, end: 0 },
+      alpha: { start: 0.9, end: 0 },
+      lifespan: 260,
+      tint: [carDef.bodyColor, 0xffffff, 0xffc93c],
+      emitting: false
+    });
+    this.boostEmitter.setDepth(4);
+
     this.speed = 0;
     this.angle = angle;
     this.z = 0;
     this.vz = 0;
     this.grounded = true;
+
+    this.boostCapacity = carDef.boost;
+    this.boostAmount = carDef.boost;
+    this.boosting = false;
 
     this.input = { throttle: 0, brake: 0, steer: 0, jump: false, boost: false };
     this._jumpHeld = false;
@@ -131,9 +167,10 @@ export default class Car {
     this.grounded = false;
   }
 
-  // externalSpeedMultiplier permite ajustes de fora (ex.: turbo, IA).
+  // externalSpeedMultiplier permite ajustes de fora (ex.: IA).
   update(deltaSeconds, externalSpeedMultiplier = 1) {
     this._updateHeight(deltaSeconds);
+    this._updateBoost(deltaSeconds);
     this._updateGroundPhysics(deltaSeconds, externalSpeedMultiplier);
     this._updateVisual();
   }
@@ -151,10 +188,28 @@ export default class Car {
     }
   }
 
+  _updateBoost(deltaSeconds) {
+    const canUse = this.boosting ? this.boostAmount > 0 : this.boostAmount >= BOOST_MIN_TO_START;
+    const wantsBoost = this.input.boost && canUse;
+
+    if (wantsBoost) {
+      if (!this.boosting) playSfx(this.scene, 'boost');
+      this.boosting = true;
+      this.boostAmount = clamp(
+        this.boostAmount - (this.boostCapacity / BOOST_DRAIN_TIME) * deltaSeconds,
+        0,
+        this.boostCapacity
+      );
+    } else {
+      this.boosting = false;
+    }
+  }
+
   _updateGroundPhysics(deltaSeconds, externalSpeedMultiplier) {
     const def = this.def;
     const { throttle, brake, steer } = this.input;
-    const maxSpeed = def.speed * externalSpeedMultiplier;
+    const boostSpeedMul = this.boosting ? BOOST_SPEED_MULTIPLIER : 1;
+    const maxSpeed = def.speed * externalSpeedMultiplier * boostSpeedMul;
 
     if (this.grounded) {
       if (throttle > 0) {
@@ -163,11 +218,13 @@ export default class Car {
         this.speed -= def.acceleration * 1.5 * brake * deltaSeconds;
       } else if (brake > 0 && this.speed <= 0) {
         this.speed -= def.acceleration * 0.5 * brake * deltaSeconds;
-      } else {
+      } else if (!this.boosting) {
         const friction = def.acceleration * 0.55 * deltaSeconds;
         if (this.speed > 0) this.speed = Math.max(0, this.speed - friction);
         else if (this.speed < 0) this.speed = Math.min(0, this.speed + friction);
       }
+
+      if (this.boosting) this.speed += (BOOST_THRUST / def.weight) * deltaSeconds;
 
       this.speed = clamp(this.speed, -maxSpeed * 0.4, maxSpeed);
 
@@ -175,7 +232,12 @@ export default class Car {
       const turnDirection = this.speed >= 0 ? 1 : -1;
       this.angle += steer * def.handling * speedRatio * turnDirection * deltaSeconds;
     } else {
-      // no ar: sem tracao, so controle aereo (vira mais devagar)
+      // no ar: sem tracao, so controle aereo (vira mais devagar); o
+      // turbo ainda funciona (e assim que da pra "voar" ate a bola).
+      if (this.boosting) {
+        this.speed += (BOOST_THRUST / def.weight) * deltaSeconds;
+        this.speed = clamp(this.speed, -maxSpeed * 0.4, maxSpeed);
+      }
       this.angle += steer * def.handling * AIR_STEER_FACTOR * deltaSeconds;
     }
 
@@ -190,17 +252,33 @@ export default class Car {
     this.shadow.setScale(shadowScale);
     this.shadow.setAlpha(SHADOW_MAX_ALPHA * shadowScale);
 
-    this.visual.setPosition(this.sprite.x, this.sprite.y - this.z * HEIGHT_SCALE);
+    const visualY = this.sprite.y - this.z * HEIGHT_SCALE;
+    this.visual.setPosition(this.sprite.x, visualY);
     this.visual.setRotation(this.angle);
+
+    if (this.boosting) {
+      const rearX = this.sprite.x - Math.cos(this.angle) * (CAR_WIDTH * 0.5);
+      const rearY = visualY - Math.sin(this.angle) * (CAR_WIDTH * 0.5);
+      this.boostEmitter.emitParticleAt(rearX, rearY, 2);
+    }
   }
 
   getSpeedKmh() {
     return Math.abs(this.speed) * 0.6;
   }
 
+  getBoostFraction() {
+    return this.boostCapacity > 0 ? this.boostAmount / this.boostCapacity : 0;
+  }
+
+  refillBoost(amount) {
+    this.boostAmount = clamp(this.boostAmount + amount, 0, this.boostCapacity);
+  }
+
   destroy() {
     this.sprite.destroy();
     this.shadow.destroy();
     this.visual.destroy();
+    this.boostEmitter.destroy();
   }
 }

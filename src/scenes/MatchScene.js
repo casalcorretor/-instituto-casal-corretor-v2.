@@ -3,6 +3,7 @@ import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfi
 import Arena from '../entities/Arena.js';
 import Car from '../entities/Car.js';
 import Ball from '../entities/Ball.js';
+import TurboPad from '../entities/TurboPad.js';
 import TouchControls from '../ui/TouchControls.js';
 import MatchManager from '../systems/MatchManager.js';
 import { ARENAS, DEFAULT_ARENA_ID, ARENA_WIDTH, ARENA_HEIGHT } from '../data/ArenasData.js';
@@ -43,6 +44,7 @@ export default class MatchScene extends Phaser.Scene {
     this._createPlayerCar();
     this._createBall();
     this._createGoalSensors();
+    this._createTurboPads();
     this._createKeyboardInput();
     this._createTouchControls();
     this._createUiCamera();
@@ -127,6 +129,25 @@ export default class MatchScene extends Phaser.Scene {
     });
   }
 
+  _createTurboPads() {
+    const w = ARENA_WIDTH;
+    const h = ARENA_HEIGHT;
+    const positions = [
+      { x: w * 0.28, y: h * 0.22 },
+      { x: w * 0.28, y: h * 0.78 },
+      { x: w * 0.72, y: h * 0.22 },
+      { x: w * 0.72, y: h * 0.78 },
+      { x: w * 0.5, y: h * 0.12 },
+      { x: w * 0.5, y: h * 0.88 }
+    ];
+
+    this.turboPads = positions.map(({ x, y }) => new TurboPad(this, { x, y }));
+    this.turboPads.forEach((pad) => {
+      this.worldObjects.push(pad.visual);
+      this.physics.add.overlap(this.playerCar.sprite, pad.zone, () => pad.tryCollect(this.playerCar));
+    });
+  }
+
   _createKeyboardInput() {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D,SPACE,SHIFT');
@@ -174,11 +195,16 @@ export default class MatchScene extends Phaser.Scene {
       })
       .setDepth(100);
 
+    this._createBoostBar();
+
     const uiObjects = [
       this.scoreText,
       this.timeText,
       this.goalText,
       this.debugText,
+      this.boostBarBg,
+      this.boostBarFill,
+      this.boostLabel,
       ...this.touchControls.gameObjects
     ];
 
@@ -186,6 +212,26 @@ export default class MatchScene extends Phaser.Scene {
     this.uiCamera.setScroll(0, 0);
     this.uiCamera.ignore(this.worldObjects);
     this.cameras.main.ignore(uiObjects);
+  }
+
+  _createBoostBar() {
+    const barWidth = 200;
+    const barX = GAME_WIDTH - 16 - barWidth;
+    const barY = GAME_HEIGHT - 210;
+
+    this.boostLabel = this.add
+      .text(barX, barY - 20, 'TURBO', { fontFamily: 'Arial Black, Arial', fontSize: '14px', color: '#ffc93c' })
+      .setDepth(150);
+    this.boostBarBg = this.add
+      .rectangle(barX, barY, barWidth, 14, 0x0b1220, 0.7)
+      .setOrigin(0, 0.5)
+      .setStrokeStyle(2, 0xffc93c, 0.9)
+      .setDepth(150);
+    this.boostBarFill = this.add
+      .rectangle(barX + 2, barY, barWidth - 4, 10, 0xffc93c, 1)
+      .setOrigin(0, 0.5)
+      .setDepth(151);
+    this._boostBarFullWidth = barWidth - 4;
   }
 
   _fitCameraToArena() {
@@ -231,10 +277,15 @@ export default class MatchScene extends Phaser.Scene {
       this.matchManager.matchOver ? 'TEMPO ESGOTADO' : this.matchManager.formatTime()
     );
 
+    const boostFraction = this.playerCar.getBoostFraction();
+    this.boostBarFill.width = this._boostBarFullWidth * boostFraction;
+    this.boostBarFill.fillColor = boostFraction < 0.15 ? 0xff3b3b : 0xffc93c;
+
     this.debugText.setText(
       [
-        'Etapa 6: gols e placar (WASD/setas, ESPACO pula, ESC volta ao menu)',
-        `carro: ${this.playerCar.getSpeedKmh().toFixed(0)} km/h | z=${this.playerCar.z.toFixed(0)}`
+        'Etapa 7: turbo (SHIFT usa turbo, WASD/setas, ESPACO pula, ESC volta ao menu)',
+        `carro: ${this.playerCar.getSpeedKmh().toFixed(0)} km/h | z=${this.playerCar.z.toFixed(0)}`,
+        `turbo: ${(boostFraction * 100).toFixed(0)}% | usando: ${this.playerCar.boosting ? 'sim' : 'nao'}`
       ].join('\n')
     );
   }
