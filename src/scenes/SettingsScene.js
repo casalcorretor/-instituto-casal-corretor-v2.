@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfig.js';
-import { getProfile } from '../systems/PlayerProfile.js';
+import { getProfile, saveProfile } from '../systems/PlayerProfile.js';
 import { setVolumes } from '../systems/AudioManager.js';
 
 const BAR_WIDTH = 220;
@@ -64,11 +64,13 @@ export default class SettingsScene extends Phaser.Scene {
       this.profile.settings[key] = Phaser.Math.Clamp(this.profile.settings[key] - 0.1, 0, 1);
       render();
       setVolumes(this.profile.settings);
+      saveProfile();
     });
     this._createStepButton(barX + BAR_WIDTH + 70, y, '+', () => {
       this.profile.settings[key] = Phaser.Math.Clamp(this.profile.settings[key] + 0.1, 0, 1);
       render();
       setVolumes(this.profile.settings);
+      saveProfile();
     });
   }
 
@@ -96,6 +98,7 @@ export default class SettingsScene extends Phaser.Scene {
     box.on('pointerdown', () => {
       this.profile.settings[key] = !this.profile.settings[key];
       text.setText(this.profile.settings[key] ? 'LIGADO' : 'DESLIGADO');
+      saveProfile();
     });
   }
 
@@ -129,6 +132,7 @@ export default class SettingsScene extends Phaser.Scene {
       // exige mudar RaceScene nem Car.
       this.profile.settings.controlMode = this.profile.settings.controlMode === 'buttons' ? 'tilt' : 'buttons';
       text.setText(modes[this.profile.settings.controlMode]);
+      saveProfile();
     });
   }
 

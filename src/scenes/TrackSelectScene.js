@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfig.js';
 import { TRACKS, TRACK_ORDER } from '../data/TracksData.js';
 import { buildClosedSpline } from '../utils/MathUtils.js';
-import { getProfile, getBestTime, isTrackUnlocked } from '../systems/PlayerProfile.js';
+import { getProfile, getBestTime, isTrackUnlocked, saveProfile } from '../systems/PlayerProfile.js';
 
 const CARD_WIDTH = 280;
 const CARD_HEIGHT = 380;
@@ -96,6 +96,7 @@ export default class TrackSelectScene extends Phaser.Scene {
 
       box.on('pointerdown', () => {
         this.profile.selectedTrackId = trackData.id;
+        saveProfile();
         this.scene.start(SCENE_KEYS.RACE, { trackId: trackData.id, carId: this.profile.selectedCarId });
       });
     } else {

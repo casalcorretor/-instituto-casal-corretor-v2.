@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { SCENE_KEYS, COLORS, GAME_WIDTH, GAME_HEIGHT } from '../config/GameConfig.js';
 import { CARS } from '../data/CarsData.js';
 import { generateCarTexture } from '../entities/Car.js';
-import { getProfile, isCarUnlocked, unlockCar } from '../systems/PlayerProfile.js';
+import { getProfile, isCarUnlocked, unlockCar, saveProfile } from '../systems/PlayerProfile.js';
 
 // Normaliza cada atributo pra caber numa barra 0..1 comparavel entre
 // carros (os maximos aqui sao só um pouco acima do maior valor real
@@ -150,6 +150,7 @@ export default class GarageScene extends Phaser.Scene {
 
     if (unlocked) {
       this.profile.selectedCarId = carDef.id;
+      saveProfile();
       this._refresh();
       return;
     }
@@ -158,6 +159,7 @@ export default class GarageScene extends Phaser.Scene {
       this.profile.coins -= carDef.unlockCost;
       unlockCar(carDef.id);
       this.profile.selectedCarId = carDef.id;
+      saveProfile();
       this._refresh();
     } else {
       this._showToast('Moedas insuficientes para desbloquear este carro');

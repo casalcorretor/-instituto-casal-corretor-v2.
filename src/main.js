@@ -9,7 +9,12 @@ import SettingsScene from './scenes/SettingsScene.js';
 import GarageScene from './scenes/GarageScene.js';
 import TrackSelectScene from './scenes/TrackSelectScene.js';
 import { unlockAudio, setVolumes } from './systems/AudioManager.js';
-import { getProfile } from './systems/PlayerProfile.js';
+import { getProfile, loadProfile } from './systems/PlayerProfile.js';
+
+// Carrega o progresso salvo (se existir) antes de qualquer cena tocar
+// no perfil — moedas, carros/pistas desbloqueados, melhores tempos e
+// configuracoes continuam de onde o jogador parou.
+loadProfile();
 
 const config = {
   type: Phaser.AUTO,
