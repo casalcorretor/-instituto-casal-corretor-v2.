@@ -13,6 +13,16 @@ export const ARENAS = {
     id: 'urban',
     name: 'Arena Urbana',
     theme: 'urban'
+  },
+  futuristic: {
+    id: 'futuristic',
+    name: 'Arena Futurista',
+    theme: 'futuristic'
+  },
+  night: {
+    id: 'night',
+    name: 'Arena Noturna',
+    theme: 'night'
   }
 };
 

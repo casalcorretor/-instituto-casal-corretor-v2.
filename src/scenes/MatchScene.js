@@ -41,7 +41,7 @@ export default class MatchScene extends Phaser.Scene {
   }
 
   init(data) {
-    this.arenaId = data?.arenaId || DEFAULT_ARENA_ID;
+    this.arenaId = data?.arenaId || PlayerProfile.getLastArenaId() || DEFAULT_ARENA_ID;
     this.carId = data?.carId || PlayerProfile.getEquippedCarId() || DEFAULT_CAR_ID;
     this.worldObjects = [];
     this.celebrating = false;
@@ -129,7 +129,7 @@ export default class MatchScene extends Phaser.Scene {
       ownGoalX: ARENA_WIDTH,
       opponentGoalX: 0,
       arenaHeight: ARENA_HEIGHT,
-      difficulty: 'normal'
+      difficulty: PlayerProfile.getBotDifficulty()
     });
   }
 

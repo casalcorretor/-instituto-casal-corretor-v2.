@@ -7,6 +7,8 @@ import MatchScene from './scenes/MatchScene.js';
 import MatchResultScene from './scenes/MatchResultScene.js';
 import GarageScene from './scenes/GarageScene.js';
 import ShopScene from './scenes/ShopScene.js';
+import ArenaSelectScene from './scenes/ArenaSelectScene.js';
+import SettingsScene from './scenes/SettingsScene.js';
 import PlayerProfile from './systems/PlayerProfile.js';
 import { CARS } from './data/CarsData.js';
 
@@ -31,7 +33,17 @@ const config = {
   input: {
     activePointers: 6
   },
-  scene: [BootScene, PreloadScene, MenuScene, MatchScene, MatchResultScene, GarageScene, ShopScene]
+  scene: [
+    BootScene,
+    PreloadScene,
+    MenuScene,
+    MatchScene,
+    MatchResultScene,
+    GarageScene,
+    ShopScene,
+    ArenaSelectScene,
+    SettingsScene
+  ]
 };
 
 const game = new Phaser.Game(config);

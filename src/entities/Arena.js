@@ -1,11 +1,34 @@
 import { ARENA_WIDTH, ARENA_HEIGHT, WALL_THICKNESS, GOAL_WIDTH } from '../data/ArenasData.js';
 
-const FIELD_COLOR = 0x123a2e;
-const FIELD_LINE_COLOR = 0x2fae86;
-const WALL_COLOR = 0x1c3444;
+// Paleta de cada tema (Etapa 17 adiciona Futurista/Noturna reaproveitando
+// o mesmo sistema de campo/paredes/decoracao da Urbana, so trocando
+// cores + um pequeno toque decorativo proprio de cada uma).
+const THEMES = {
+  urban: {
+    field: 0x123a2e,
+    fieldLine: 0x2fae86,
+    wall: 0x1c3444,
+    stand: 0x0d1b26,
+    standAccent: 0x18303f
+  },
+  futuristic: {
+    field: 0x0a1a33,
+    fieldLine: 0x2fa8ff,
+    wall: 0x14243d,
+    stand: 0x081019,
+    standAccent: 0x122a4a
+  },
+  night: {
+    field: 0x14102a,
+    fieldLine: 0x9b59ff,
+    wall: 0x1e1830,
+    stand: 0x0a0714,
+    standAccent: 0x1c1430
+  }
+};
+
 const GOAL_LEFT_COLOR = 0x2fa8ff;
 const GOAL_RIGHT_COLOR = 0xff5a4d;
-const STAND_COLOR = 0x0d1b26;
 const GOAL_DEPTH = 46;
 
 // Constroi o campo: grama, marcacoes (linha central, circulo central,
@@ -13,13 +36,15 @@ const GOAL_DEPTH = 46;
 // bola colidem com o campo mas atravessam a abertura do gol), e uma
 // decoracao simples de arquibancada ao redor. As paredes sao retas
 // (Arcade Physics so suporta caixas alinhadas aos eixos, sem rotacao
-// real na colisao) — suficiente pra um campo estilo arcade.
+// real na colisao) — suficiente pra um campo estilo arcade. A cor e um
+// pequeno detalhe decorativo mudam conforme o tema da arena.
 export default class Arena {
   constructor(scene, arenaData) {
     this.scene = scene;
     this.width = ARENA_WIDTH;
     this.height = ARENA_HEIGHT;
     this.theme = arenaData.theme;
+    this.colors = THEMES[this.theme] || THEMES.urban;
 
     this.goalTop = this.height / 2 - GOAL_WIDTH / 2;
     this.goalBottom = this.height / 2 + GOAL_WIDTH / 2;
@@ -37,12 +62,13 @@ export default class Arena {
 
   _drawField() {
     const g = this.scene.add.graphics().setDepth(0);
+    const c = this.colors;
 
-    g.fillStyle(FIELD_COLOR, 1);
+    g.fillStyle(c.field, 1);
     g.fillRect(0, 0, this.width, this.height);
 
     // linha central
-    g.lineStyle(4, FIELD_LINE_COLOR, 0.6);
+    g.lineStyle(4, c.fieldLine, 0.6);
     g.beginPath();
     g.moveTo(this.width / 2, 0);
     g.lineTo(this.width / 2, this.height);
@@ -59,27 +85,56 @@ export default class Arena {
     g.strokeRect(this.width - boxWidth, boxY, boxWidth, boxHeight);
 
     // borda externa do campo
-    g.lineStyle(4, FIELD_LINE_COLOR, 0.35);
+    g.lineStyle(4, c.fieldLine, 0.35);
     g.strokeRect(2, 2, this.width - 4, this.height - 4);
+
+    if (this.theme === 'futuristic') {
+      // grade neon fina cruzando o campo, ao estilo "arena digital"
+      g.lineStyle(1, c.fieldLine, 0.15);
+      for (let x = 0; x < this.width; x += 80) {
+        g.beginPath();
+        g.moveTo(x, 0);
+        g.lineTo(x, this.height);
+        g.strokePath();
+      }
+      for (let y = 0; y < this.height; y += 80) {
+        g.beginPath();
+        g.moveTo(0, y);
+        g.lineTo(this.width, y);
+        g.strokePath();
+      }
+    }
 
     this.gameObjects.push(g);
   }
 
   _drawStands() {
     const g = this.scene.add.graphics().setDepth(-1);
+    const c = this.colors;
     const pad = 60;
 
-    g.fillStyle(STAND_COLOR, 1);
+    g.fillStyle(c.stand, 1);
     g.fillRect(-pad, -pad, this.width + pad * 2, pad);
     g.fillRect(-pad, this.height, this.width + pad * 2, pad);
     g.fillRect(-pad, 0, pad, this.height);
     g.fillRect(this.width, 0, pad, this.height);
 
-    // fileiras simples de arquibancada (retangulos claros alternados)
-    g.fillStyle(0x18303f, 1);
-    for (let x = 0; x < this.width; x += 40) {
-      g.fillRect(x, -pad + 8, 26, pad - 16);
-      g.fillRect(x, this.height + 8, 26, pad - 16);
+    if (this.theme === 'night') {
+      // ceu estrelado na arquibancada, ao inves das fileiras xadrez
+      g.fillStyle(0xffffff, 0.6);
+      for (let i = 0; i < 140; i += 1) {
+        const x = (i * 977) % (this.width + pad * 2) - pad;
+        const y = (i * 613) % pad;
+        const onTop = i % 2 === 0;
+        g.fillRect(x, onTop ? -pad + y : this.height + y, 2, 2);
+      }
+    } else {
+      // fileiras simples de arquibancada (retangulos claros alternados)
+      g.fillStyle(c.standAccent, 1);
+      for (let x = 0; x < this.width; x += 40) {
+        g.fillRect(x, -pad + 8, 26, pad - 16);
+        g.fillRect(x, this.height + 8, 26, pad - 16);
+      }
     }
 
     this.gameObjects.push(g);
@@ -123,7 +178,7 @@ export default class Arena {
   }
 
   _addWall(x, y, width, height) {
-    const rect = this.scene.add.rectangle(x, y, width, height, WALL_COLOR, 1).setDepth(3);
+    const rect = this.scene.add.rectangle(x, y, width, height, this.colors.wall, 1).setDepth(3);
     this.scene.physics.add.existing(rect, true);
     this.walls.add(rect);
     this.gameObjects.push(rect);

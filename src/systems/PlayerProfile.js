@@ -1,4 +1,5 @@
 import { CARS, DEFAULT_CAR_ID } from '../data/CarsData.js';
+import { DEFAULT_ARENA_ID } from '../data/ArenasData.js';
 
 // Bonus diario configuravel (spec pede 500 a 2000). A logica de "so
 // pode resgatar uma vez por dia" depende de data salva em disco, que
@@ -16,6 +17,10 @@ function xpNeededForLevel(level) {
   return LEVEL_BASE_XP + (level - 1) * LEVEL_XP_GROWTH;
 }
 
+function clampVolume(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
 const state = {
   coins: 0,
   level: 1,
@@ -31,7 +36,11 @@ const state = {
     // reservados pra quando adesivos/acessorios ganharem efeito visual
     stickerId: 'none',
     accessoryId: 'none'
-  }
+  },
+  lastArenaId: DEFAULT_ARENA_ID,
+  botDifficulty: 'normal',
+  musicVolume: 0.7,
+  sfxVolume: 0.8
 };
 
 // Perfil do jogador (singleton do modulo, um unico objeto compartilhado
@@ -139,6 +148,38 @@ const PlayerProfile = {
     }
 
     return { level: state.level, xp: state.xp, leveledUp: levelsGained > 0, levelsGained };
+  },
+
+  getLastArenaId() {
+    return state.lastArenaId;
+  },
+
+  setLastArenaId(arenaId) {
+    state.lastArenaId = arenaId;
+  },
+
+  getBotDifficulty() {
+    return state.botDifficulty;
+  },
+
+  setBotDifficulty(difficulty) {
+    state.botDifficulty = difficulty;
+  },
+
+  getMusicVolume() {
+    return state.musicVolume;
+  },
+
+  setMusicVolume(value) {
+    state.musicVolume = clampVolume(value);
+  },
+
+  getSfxVolume() {
+    return state.sfxVolume;
+  },
+
+  setSfxVolume(value) {
+    state.sfxVolume = clampVolume(value);
   },
 
   // Exposto pra debug/testes; a UI real de nivel/XP entra na Etapa 16.
