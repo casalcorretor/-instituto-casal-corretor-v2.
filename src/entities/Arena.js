@@ -6,6 +6,7 @@ const WALL_COLOR = 0x1c3444;
 const GOAL_LEFT_COLOR = 0x2fa8ff;
 const GOAL_RIGHT_COLOR = 0xff5a4d;
 const STAND_COLOR = 0x0d1b26;
+const GOAL_DEPTH = 46;
 
 // Constroi o campo: grama, marcacoes (linha central, circulo central,
 // areas de gol), paredes fisicas com abertura pros gols (o jogador e a
@@ -29,6 +30,8 @@ export default class Arena {
     this._drawField();
     this._drawStands();
     this._buildWalls();
+    this._buildGoalNetWalls();
+    this._buildGoalSensors();
     this._drawGoalFrames();
   }
 
@@ -97,6 +100,26 @@ export default class Arena {
 
     this._addWall(w - t / 2, this.goalTop / 2, t, this.goalTop);
     this._addWall(w - t / 2, this.goalBottom + (h - this.goalBottom) / 2, t, h - this.goalBottom);
+  }
+
+  // "Rede" do gol: uma parede atras da linha de gol, pra bola nao sair
+  // voando pra sempre depois de entrar — quica ali e fica dentro do
+  // gol ate o reset.
+  _buildGoalNetWalls() {
+    const t = 10;
+    this._addWall(-GOAL_DEPTH + t / 2, this.height / 2, t, GOAL_WIDTH);
+    this._addWall(this.width + GOAL_DEPTH - t / 2, this.height / 2, t, GOAL_WIDTH);
+  }
+
+  // Zonas sensoras (sem corpo solido, so overlap) que detectam quando a
+  // bola entrou de fato no gol — usadas pela MatchScene pra contar o
+  // ponto e resetar a bola.
+  _buildGoalSensors() {
+    this.leftGoalSensor = this.scene.add.zone(-GOAL_DEPTH / 2, this.height / 2, GOAL_DEPTH, GOAL_WIDTH);
+    this.scene.physics.add.existing(this.leftGoalSensor, true);
+
+    this.rightGoalSensor = this.scene.add.zone(this.width + GOAL_DEPTH / 2, this.height / 2, GOAL_DEPTH, GOAL_WIDTH);
+    this.scene.physics.add.existing(this.rightGoalSensor, true);
   }
 
   _addWall(x, y, width, height) {

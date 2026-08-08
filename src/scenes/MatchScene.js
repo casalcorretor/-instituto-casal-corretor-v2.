@@ -4,17 +4,19 @@ import Arena from '../entities/Arena.js';
 import Car from '../entities/Car.js';
 import Ball from '../entities/Ball.js';
 import TouchControls from '../ui/TouchControls.js';
+import MatchManager from '../systems/MatchManager.js';
 import { ARENAS, DEFAULT_ARENA_ID, ARENA_WIDTH, ARENA_HEIGHT } from '../data/ArenasData.js';
 import { CARS, DEFAULT_CAR_ID } from '../data/CarsData.js';
 
 const BASE_HIT_IMPULSE = 420;
 const VERTICAL_HIT_BASE = 380;
+const GOAL_CELEBRATION_MS = 1500;
 
-// Cena de partida. Constroi a arena e o carro do jogador com fisica
-// (chao + altura simulada pro pulo) e controles touch/teclado. A
-// camera principal enquadra o campo inteiro; uma segunda camera de UI
-// (zoom fixo em 1, ignorando o mundo) exibe o HUD e os botoes — evita
-// o bug de HUD distorcido pelo zoom da camera principal.
+// Cena de partida. Constroi a arena, o carro do jogador (fisica de
+// chao + altura simulada) e a bola, com controles touch/teclado, gols
+// e placar. A camera principal enquadra o campo inteiro; uma segunda
+// camera de UI (zoom fixo em 1, ignorando o mundo) exibe o HUD e os
+// botoes — evita o bug de HUD distorcido pelo zoom da camera principal.
 export default class MatchScene extends Phaser.Scene {
   constructor() {
     super(SCENE_KEYS.MATCH);
@@ -24,6 +26,7 @@ export default class MatchScene extends Phaser.Scene {
     this.arenaId = data?.arenaId || DEFAULT_ARENA_ID;
     this.carId = data?.carId || DEFAULT_CAR_ID;
     this.worldObjects = [];
+    this.celebrating = false;
   }
 
   create() {
@@ -35,8 +38,11 @@ export default class MatchScene extends Phaser.Scene {
 
     this.physics.world.setBounds(-80, -80, ARENA_WIDTH + 160, ARENA_HEIGHT + 160);
 
+    this.matchManager = new MatchManager();
+
     this._createPlayerCar();
     this._createBall();
+    this._createGoalSensors();
     this._createKeyboardInput();
     this._createTouchControls();
     this._createUiCamera();
@@ -97,6 +103,30 @@ export default class MatchScene extends Phaser.Scene {
     }
   }
 
+  _createGoalSensors() {
+    // bola no sensor esquerdo (gol azul) = ponto pro time vermelho, e
+    // vice-versa.
+    this.physics.add.overlap(this.ball.sprite, this.arena.leftGoalSensor, () => this._onGoal('red'));
+    this.physics.add.overlap(this.ball.sprite, this.arena.rightGoalSensor, () => this._onGoal('blue'));
+  }
+
+  _onGoal(scoringSide) {
+    if (this.celebrating || this.matchManager.matchOver) return;
+
+    this.celebrating = true;
+    this.matchManager.registerGoal(scoringSide);
+
+    const label = scoringSide === 'blue' ? 'GOL AZUL!' : 'GOL VERMELHO!';
+    const color = scoringSide === 'blue' ? '#2fa8ff' : '#ff5a4d';
+    this.goalText.setText(label).setColor(color).setAlpha(1);
+
+    this.time.delayedCall(GOAL_CELEBRATION_MS, () => {
+      this.goalText.setAlpha(0);
+      this.ball.resetTo(ARENA_WIDTH / 2, ARENA_HEIGHT / 2);
+      this.celebrating = false;
+    });
+  }
+
   _createKeyboardInput() {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys('W,A,S,D,SPACE,SHIFT');
@@ -107,16 +137,50 @@ export default class MatchScene extends Phaser.Scene {
   }
 
   _createUiCamera() {
-    this.debugText = this.add
-      .text(16, 16, '', {
+    this.scoreText = this.add
+      .text(GAME_WIDTH / 2, 14, '', {
+        fontFamily: 'Arial Black, Arial',
+        fontSize: '26px',
+        color: '#ffffff'
+      })
+      .setOrigin(0.5, 0)
+      .setDepth(100);
+
+    this.timeText = this.add
+      .text(GAME_WIDTH / 2, 46, '', {
         fontFamily: 'Arial',
         fontSize: '16px',
+        color: '#8fb3c9'
+      })
+      .setOrigin(0.5, 0)
+      .setDepth(100);
+
+    this.goalText = this.add
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 60, '', {
+        fontFamily: 'Arial Black, Arial',
+        fontSize: '44px',
+        color: '#ffffff'
+      })
+      .setOrigin(0.5)
+      .setAlpha(0)
+      .setDepth(101);
+
+    this.debugText = this.add
+      .text(16, 80, '', {
+        fontFamily: 'Arial',
+        fontSize: '14px',
         color: '#ffffff',
         backgroundColor: '#000000'
       })
       .setDepth(100);
 
-    const uiObjects = [this.debugText, ...this.touchControls.gameObjects];
+    const uiObjects = [
+      this.scoreText,
+      this.timeText,
+      this.goalText,
+      this.debugText,
+      ...this.touchControls.gameObjects
+    ];
 
     this.uiCamera = this.cameras.add(0, 0, GAME_WIDTH, GAME_HEIGHT);
     this.uiCamera.setScroll(0, 0);
@@ -153,15 +217,24 @@ export default class MatchScene extends Phaser.Scene {
     const deltaSeconds = delta / 1000;
     const input = this._readInput();
 
-    this.playerCar.setInput(input);
+    if (!this.matchManager.matchOver) {
+      this.playerCar.setInput(input);
+    } else {
+      this.playerCar.setInput({ throttle: 0, brake: 0, steer: 0 });
+    }
     this.playerCar.update(deltaSeconds);
     this.ball.update(deltaSeconds);
+    this.matchManager.update(deltaSeconds);
+
+    this.scoreText.setText(`AZUL ${this.matchManager.score.blue}  x  ${this.matchManager.score.red} VERMELHO`);
+    this.timeText.setText(
+      this.matchManager.matchOver ? 'TEMPO ESGOTADO' : this.matchManager.formatTime()
+    );
 
     this.debugText.setText(
       [
-        'Etapa 5: bola (WASD/setas, ESPACO pula, ESC volta ao menu)',
-        `carro: ${this.playerCar.getSpeedKmh().toFixed(0)} km/h | z=${this.playerCar.z.toFixed(0)}`,
-        `bola: z=${this.ball.z.toFixed(0)} | vel=${Math.hypot(this.ball.sprite.body.velocity.x, this.ball.sprite.body.velocity.y).toFixed(0)}`
+        'Etapa 6: gols e placar (WASD/setas, ESPACO pula, ESC volta ao menu)',
+        `carro: ${this.playerCar.getSpeedKmh().toFixed(0)} km/h | z=${this.playerCar.z.toFixed(0)}`
       ].join('\n')
     );
   }
